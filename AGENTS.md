@@ -6,7 +6,7 @@ Small macOS CLI that snapshots a folder with APFS copy-on-write clones (`backup-
 
 - Build (macOS): `swiftc -O -o backup-folder backup-folder.swift` (healthy: `backup-folder` binary in the repo root).
 - Parse-only (Linux cloud VM): `swiftc -parse backup-folder.swift` (healthy: exit 0). Full type-check and link need Darwin; Linux cannot build this binary while the tool imports `Darwin` and calls `clonefile`.
-- CI smoke (macOS): `bash tests/macos-smoke.sh` (healthy: line `macos-smoke: build OK, snapshot OK, APFS clone inode + COW OK`).
+- CI smoke (macOS): `bash tests/macos-smoke.sh` (healthy: line `macos-smoke: build OK, clonefile probe OK, snapshot OK, COW OK`).
 - Cloud Agent install: `bash .cursor/install.sh` (healthy: `swiftc --version` and skills under `~/.cursor/skills-cursor`).
 - Cloud Agent start: `bash .cursor/start.sh` (no-op for this repo).
 - CI: `.github/workflows/test.yml` (workflow `test`, job `macos`) runs on every pull request and on pushes to `main`. It builds with `swiftc` and runs `tests/macos-smoke.sh` on `macos-latest`. There is no Linux CI job yet: all runtime logic lives in `backup-folder.swift` and requires Darwin.

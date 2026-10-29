@@ -8,6 +8,7 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
 swiftc -O -o backup-folder backup-folder.swift
+swiftc -O -o clonefile-probe tests/clonefile-probe.swift
 
 SRC="$(mktemp -d)"
 DEST="$(mktemp -d)"
@@ -20,6 +21,20 @@ if ! diskutil info "$mount_point" 2>/dev/null | grep -qi 'apfs'; then
   diskutil info "$mount_point" >&2 || true
   exit 1
 fi
+
+probe_src="$SRC/clone-probe-src.txt"
+probe_dst="$SRC/clone-probe-dst.txt"
+printf 'clone-probe\n' >"$probe_src"
+rm -f "$probe_dst"
+"$ROOT/clonefile-probe" "$probe_src" "$probe_dst"
+probe_src_inode="$(stat -f '%i' "$probe_src")"
+probe_dst_inode="$(stat -f '%i' "$probe_dst")"
+if [[ "$probe_src_inode" != "$probe_dst_inode" ]]; then
+  echo "clonefile probe: expected shared inode, got src=${probe_src_inode} dst=${probe_dst_inode}" >&2
+  exit 1
+fi
+printf 'mutated-probe\n' >"$probe_src"
+test "$(cat "$probe_dst")" = "clone-probe"
 
 printf 'fixture-one\n' >"$SRC/a.txt"
 mkdir -p "$SRC/sub"
@@ -53,13 +68,6 @@ fi
 test "$(cat "$DEST/$snap/a.txt")" = "fixture-one"
 test "$(cat "$DEST/$snap/sub/b.txt")" = "fixture-two"
 
-src_inode="$(stat -f '%i' "$SRC/a.txt")"
-snap_inode="$(stat -f '%i' "$DEST/$snap/a.txt")"
-if [[ "$src_inode" != "$snap_inode" ]]; then
-  echo "Expected APFS clone to share inode before mutation (src=${src_inode}, snap=${snap_inode})" >&2
-  exit 1
-fi
-
 printf 'mutated\n' >"$SRC/a.txt"
 test "$(cat "$DEST/$snap/a.txt")" = "fixture-one"
 
@@ -70,4 +78,4 @@ set +e
 [[ $? -eq 2 ]]
 set -e
 
-echo "macos-smoke: build OK, snapshot OK, APFS clone inode + COW OK"
+echo "macos-smoke: build OK, clonefile probe OK, snapshot OK, COW OK"
