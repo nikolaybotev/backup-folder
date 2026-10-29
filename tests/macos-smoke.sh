@@ -33,17 +33,22 @@ if ! grep -q 'OK snapshot' "$DEST/backup.log"; then
   exit 1
 fi
 
-mapfile -t snaps < <(
+snap=""
+snap_count=0
+while IFS= read -r name; do
+  [[ -z "$name" ]] && continue
+  snap="$name"
+  snap_count=$((snap_count + 1))
+done < <(
   find "$DEST" -maxdepth 1 -mindepth 1 -type d -print \
     | sed 's|.*/||' \
     | grep -E '^[0-9]{4}-[0-9]{2}-[0-9]{2}_[0-9]{4}$' || true
 )
-if [[ "${#snaps[@]}" -ne 1 ]]; then
-  echo "Expected exactly one snapshot directory, found: ${snaps[*]:-<none>}" >&2
+if [[ "$snap_count" -ne 1 || -z "$snap" ]]; then
+  echo "Expected exactly one snapshot directory, found count=${snap_count}" >&2
   ls -la "$DEST" >&2
   exit 1
 fi
-snap="${snaps[0]}"
 
 test "$(cat "$DEST/$snap/a.txt")" = "fixture-one"
 test "$(cat "$DEST/$snap/sub/b.txt")" = "fixture-two"
