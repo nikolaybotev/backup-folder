@@ -8,6 +8,12 @@ fi
 export PATH="${HOME}/.local/bin:${PATH}"
 eval "$(mise activate bash)"
 
+# swift.org's Linux toolchain needs the ncurses 6 sonames. The default image does not ship them.
+if ! ldconfig -p 2>/dev/null | grep -q 'libncurses\.so\.6'; then
+  sudo apt-get update
+  sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends libncurses6
+fi
+
 cd /workspace
 mise trust --yes
 mise install
