@@ -1,0 +1,27 @@
+name: release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  macos:
+    runs-on: macos-latest
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+      - name: Build
+        run: swiftc -O -o backup-folder backup-folder.swift
+      - name: Publish GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: backup-folder
+          generate_release_notes: true

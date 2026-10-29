@@ -1,0 +1,29 @@
+name: protect-main
+
+# Applies repository rules for main (no force-push, no deletion, required CI).
+# Runs when the script changes or on demand. Like Compound's gh-pages protection,
+# HTTP 403 is non-fatal and manual settings are recorded in the PR.
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/scripts/protect-main-branch.sh
+      - .github/workflows/protect-main.yml
+
+permissions:
+  contents: read
+  administration: write
+
+jobs:
+  protect:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+      - name: Protect main branch
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: bash .github/scripts/protect-main-branch.sh
