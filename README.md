@@ -36,4 +36,4 @@ Run one hourly LaunchAgent per folder. Each agent invokes this binary with that 
 
 `clonefile` and `launchd` are macOS-only, so building a binary that can take snapshots and scheduling it needs a Mac.
 
-Cloud agents boot the default image and run [`.cursor/install.sh`](.cursor/install.sh). That installs [mise](https://mise.jdx.dev/) and the Swift toolchain pinned in [`mise.toml`](mise.toml). The Linux toolchain can read and edit this file. It cannot APFS-clone files or load a LaunchAgent.
+Cloud agents boot the default image and run [`.cursor/install.sh`](.cursor/install.sh). That installs `libncurses6` (the Swift Linux toolchain needs `libncurses.so.6`, `libform.so.6`, and `libpanel.so.6`), then [mise](https://mise.jdx.dev/) and the Swift release pinned in [`mise.toml`](mise.toml). The Linux toolchain can read and edit this file. It cannot APFS-clone files or load a LaunchAgent.
