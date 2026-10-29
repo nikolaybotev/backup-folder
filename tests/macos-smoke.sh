@@ -27,12 +27,7 @@ probe_dst="$SRC/clone-probe-dst.txt"
 printf 'clone-probe\n' >"$probe_src"
 rm -f "$probe_dst"
 "$ROOT/clonefile-probe" "$probe_src" "$probe_dst"
-probe_src_inode="$(stat -f '%i' "$probe_src")"
-probe_dst_inode="$(stat -f '%i' "$probe_dst")"
-if [[ "$probe_src_inode" != "$probe_dst_inode" ]]; then
-  echo "clonefile probe: expected shared inode, got src=${probe_src_inode} dst=${probe_dst_inode}" >&2
-  exit 1
-fi
+test "$(cat "$probe_dst")" = "clone-probe"
 printf 'mutated-probe\n' >"$probe_src"
 test "$(cat "$probe_dst")" = "clone-probe"
 
