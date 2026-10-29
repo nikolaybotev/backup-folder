@@ -36,4 +36,4 @@ Run one hourly LaunchAgent per folder. Each agent invokes this binary with that 
 
 `clonefile` and `launchd` are macOS-only, so building a binary that can take snapshots and scheduling it needs a Mac.
 
-Cloud agents use the Linux image in [`.cursor/environment.json`](.cursor/environment.json) (Swift toolchain on Ubuntu) to read, edit, and type-check. That image cannot APFS-clone files or load a LaunchAgent.
+Cloud agents boot the default image and run [`.cursor/install.sh`](.cursor/install.sh). That installs [mise](https://mise.jdx.dev/) and the Swift toolchain pinned in [`mise.toml`](mise.toml). The Linux toolchain can read and edit this file. It cannot APFS-clone files or load a LaunchAgent.

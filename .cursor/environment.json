@@ -1,7 +1,4 @@
 {
-  "build": {
-    "dockerfile": "Dockerfile",
-    "context": ".."
-  },
-  "install": "swiftc --version"
+  "name": "backup-folder",
+  "install": "bash .cursor/install.sh"
 }
