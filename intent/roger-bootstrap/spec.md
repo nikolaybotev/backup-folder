@@ -62,7 +62,7 @@ FR1. `docs/setup.md` follows the step catalog in section 5.4 in that order. `doc
 
 FR2. The docs state that Nikolay runs them, that CI does not, and that a heads-up comes before anything is installed on Roger.
 
-FR3. The docs do not contain a WireGuard key, a tunnel address, an endpoint host or port, a 1Password secret or `op://` path, a personal source-folder name, or a GPG key id. They name the placeholder tokens from section 5.2 and say to fill them from 1Password.
+FR3. The docs do not contain a WireGuard key, a tunnel address, an endpoint host or port, a 1Password secret or 1Password item URI path, a personal source-folder name, or a GPG key id. They name the placeholder tokens from section 5.2 and say to fill them from 1Password.
 
 ### 5.2 Templates
 
@@ -182,7 +182,7 @@ A caveat paragraph, not a bullet: with FileVault, nothing including the VPN star
 | AC | Check |
 |---|---|
 | AC1 | `bash tests/setup-docs.sh` exits 0. Every bullet in `docs/setup.md` and `docs/restore.md` starts with `- Manual:` or `- Script:`, and the catalog anchors from the plan are present. |
-| AC2 | `bash tests/no-secrets.sh` exits 0. `wg0.conf.template` matches FR4. Both plists parse. The scanned trees (`intent/`, `launchd/`, `docs/`, `scripts/`, `README.md`, `pins.txt`, `.github/workflows/`) contain no `op://` URI, no WireGuard-key-shaped token, no IPv4 literal, no IPv6 literal, and no numeric port suffix (a colon followed by a decimal integer). The test does not embed the runbook's real addresses, prefix, or port. The backup template has no `StartInterval`. |
+| AC2 | `bash tests/no-secrets.sh` exits 0. `wg0.conf.template` matches FR4. Both plists parse. The scanned trees (`intent/`, `launchd/`, `docs/`, `scripts/`, `README.md`, `pins.txt`, `.github/workflows/`) contain no 1Password item URI, no WireGuard-key-shaped token, no IPv4 literal, no IPv6 literal, and no numeric port suffix (a colon followed by a decimal integer). The test does not embed the runbook's real addresses, prefix, or port. The backup template has no `StartInterval`. |
 | AC3 | `launchd/com.wireguard.wg0.plist.template` has the label, program, PATH, `RunAtLoad`, `KeepAlive`, and standard-error path from FR5, and no endpoint or key. Checked by `tests/no-secrets.sh`. |
 | AC4 | `launchd/backup-folder.plist.template` has the label, `~/bin` path, calendar minute 0, and `RunAtLoad` false from FR6. Checked by `tests/no-secrets.sh`. |
 | AC5 | `bash tests/release-workflow.sh` exits 0. `release.yml` triggers on `v*` tags, runs on `macos-latest`, calls `actions/attest` with `subject-path` set to each binary, and has the permissions and verify flags from FR9 (`id-token: write`, `attestations: write`, `contents: write`). It does not require `artifact-metadata: write`. The ban on a `schedule` key and the ban on a push `branches` key apply to `release.yml` only. The `v*` tag trigger stays. |
@@ -204,7 +204,7 @@ A caveat paragraph, not a bullet: with FileVault, nothing including the VPN star
 
 **D5 — Install into `~/bin` only.** The script's only install path is `$HOME/bin/<tool>`. It does not touch `~/Backups` or `~/Backups/bin`. Moving an older binary out of `~/Backups/bin` is something Nikolay does on the Mac, in the same window as the watcher install, and this repo does not do it. This matches the settled watcher install location.
 
-**D6 — The public WireGuard template placeholders every tunnel value.** The runbook's filled-in addresses, and the IPv6 prefix its to-do says to abandon, are not copied into git. That to-do points at a prefix published in Ben Hardill's article [Setting up WireGuard IPv6](https://blog.hardill.me.uk/2021/04/20/setting-up-wireguard-ipv6/) (checked 2026-10-30). The replacement range is chosen when the AWS server changes, which is outside this repo. `op://` item paths are not committed; the item names were not given, and the template does not need them. Nikolay fills the tokens with `op` or by paste at install time.
+**D6 — The public WireGuard template placeholders every tunnel value.** The runbook's filled-in addresses, and the IPv6 prefix its to-do says to abandon, are not copied into git. That to-do points at a prefix published in Ben Hardill's article [Setting up WireGuard IPv6](https://blog.hardill.me.uk/2021/04/20/setting-up-wireguard-ipv6/) (checked 2026-10-30). The replacement range is chosen when the AWS server changes, which is outside this repo. 1Password item URI paths are not committed; the item names were not given, and the template does not need them. Nikolay fills the tokens with `op` or by paste at install time.
 
 **D7 — Personal source-folder names stay out of git. The layout rule stays.** The runbook names three backup sources and a home-mirrored `~/Backups` layout. The public docs and the directory script do not contain those names. Each snapshot directory is `~/Backups` plus the source path relative to the home directory. He passes those absolute paths when he installs the LaunchAgents and when he runs `scripts/ensure-backup-dirs.sh`. The existing snapshot source comment in `backup-folder.swift` is left as it is; this change does not add folder names.
 

@@ -1,0 +1,11 @@
+[Interface]
+PrivateKey = [PRIVATE_KEY]
+Address = [INTERFACE_ADDRESS]
+DNS = [DNS]
+
+[Peer]
+PublicKey = [SERVER_PUBLIC_KEY]
+PresharedKey = [PRESHARED_KEY]
+AllowedIPs = [ALLOWED_IPS]
+Endpoint = [SERVER_PUBLIC_IP]:[PORT]
+PersistentKeepalive = 25
