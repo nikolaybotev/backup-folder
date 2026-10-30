@@ -249,8 +249,12 @@ if [[ "$(readlink "$link_entry")" != "$LINK_HIDDEN/realdir" ]]; then
   printf '  got:      %q\n' "$(readlink "$link_entry")" >&2
   exit 1
 fi
-if [[ -d "$link_entry" && ! -L "$link_entry" ]] \
-  || find "$LINK_DEST/$link_snap" -name inside.txt -type f -print 2>/dev/null | grep -q .; then
+link_inside_leak=0
+while IFS= read -r _leak_path; do
+  [[ -z "$_leak_path" ]] && continue
+  link_inside_leak=1
+done < <(find "$LINK_DEST/$link_snap" -name inside.txt -type f -print 2>/dev/null || true)
+if [[ -d "$link_entry" && ! -L "$link_entry" ]] || [[ "$link_inside_leak" -eq 1 ]]; then
   echo "Snapshot must not walk directory symlink target tree" >&2
   find "$LINK_DEST/$link_snap" >&2 || true
   exit 1
