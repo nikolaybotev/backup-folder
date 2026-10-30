@@ -229,6 +229,11 @@ struct DropBoxWatcherTests {
         let text = (try? String(contentsOfFile: path, encoding: .utf8)) ?? ""
         assert(!text.contains(testWebhookKey), "log must not contain webhook key")
         assert(!text.localizedCaseInsensitiveContains("authorization"), "log must not contain authorization")
+        let startupLine = "started watch_folder=/tmp/macos-watcher-watch-12345"
+        assert(OperationalLog.redactionViolations(in: startupLine).isEmpty, "startup log line must not trip redaction")
+        log.writeLine(startupLine)
+        let after = (try? String(contentsOfFile: path, encoding: .utf8)) ?? ""
+        assert(after.contains("started watch_folder="), "startup line must be written")
     }
 
     static func testWebhookNotifier() async {
