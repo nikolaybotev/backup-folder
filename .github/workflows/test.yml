@@ -24,6 +24,7 @@ jobs:
         run: bash tests/macos-smoke.sh
       - name: Secret and template scan
         run: bash tests/no-secrets.sh
+<<<<<<< HEAD
 
   linux:
     runs-on: ubuntu-latest
@@ -49,3 +50,7 @@ jobs:
           swiftc --version
       - name: Darwin-free unit tests
         run: bash tests/linux-unit.sh
+=======
+      - name: Release workflow static check
+        run: bash tests/release-workflow.sh
+>>>>>>> 2e443ea (feat(roger-bootstrap): attest release binaries)
