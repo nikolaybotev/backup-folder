@@ -58,4 +58,5 @@ DoD: the Linux retention command exits 0. The pull request’s `macos`, `linux`,
 
 ### Build notes (Phase 1)
 
-Added only after the phase lands.
+- Prune parsers in `backup-folder.swift` use `TimeZone.current` to match name formatting; Linux retention tests pass an explicit `Etc/UTC` parser.
+- `sortedCandidateNames` treats nil parse as sorting after parsed names (impossible dates stay out of delete lists via `namesToPrune`).

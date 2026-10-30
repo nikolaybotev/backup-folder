@@ -17,8 +17,8 @@ struct RetentionTests {
         cal.timeZone = tz
         cal.locale = Locale(identifier: "en_US_POSIX")
 
-        func instant(_ y: Int, _ m: Int, _ d: Int, _ hh: Int, _ mm: Int) -> Date {
-            cal.date(from: DateComponents(year: y, month: m, day: d, hour: hh, minute: mm, second: 0))!
+        func instant(_ y: Int, _ m: Int, _ d: Int, _ hh: Int, _ mm: Int, _ ss: Int = 0) -> Date {
+            cal.date(from: DateComponents(year: y, month: m, day: d, hour: hh, minute: mm, second: ss))!
         }
 
         func name(_ y: Int, _ m: Int, _ d: Int, _ hh: Int, _ mm: Int) -> String {
@@ -104,8 +104,38 @@ struct RetentionTests {
             expect(del.isEmpty, "unparsed name must not be pruned")
         }
 
-        // Newer name shape is not a candidate in phase 0.
-        expect(!SnapshotRetention.isOldFormatCandidate("2026-10-29_120000-42"), "phase 1 shape not candidate")
+        // New-format name is a candidate; instant comes from the six time digits.
+        do {
+            let newName = "2026-10-29_120530-4242"
+            expect(SnapshotRetention.isNewFormatCandidate(newName), "new shape is candidate")
+            let newParser = makeNewNameParser(timeZone: tz)
+            let snap = instant(2026, 10, 29, 12, 5, 30)
+            expect(newParser(newName) == snap, "new shape parses instant")
+            let now = snap.addingTimeInterval(SnapshotRetention.keepFreshSeconds + 1)
+            let del = SnapshotRetention.namesToPrune(sortedCandidateNames: [newName], now: now, parseInstant: newParser)
+            expect(del.isEmpty, "new shape 48h+1 first of day should keep")
+        }
+
+        // Old and new name in the same minute (same instant): sort by full name after instant.
+        do {
+            let oldN = name(2026, 9, 15, 14, 30)
+            let newN = "2026-09-15_143000-999"
+            let combinedParser: (String) -> Date? = { n in
+                if SnapshotRetention.isOldFormatCandidate(n) { return parser(n) }
+                if SnapshotRetention.isNewFormatCandidate(n) { return makeNewNameParser(timeZone: tz)(n) }
+                return nil
+            }
+            expect(combinedParser(oldN) == combinedParser(newN), "old and new same-minute instants match")
+            let sorted = SnapshotRetention.sortedCandidateNames([newN, oldN], parseInstant: combinedParser)
+            expect(sorted == [oldN, newN], "same instant: sort by full name")
+            let early = name(2026, 9, 15, 8, 0)
+            let del = SnapshotRetention.namesToPrune(
+                sortedCandidateNames: [early, oldN, newN],
+                now: anchor,
+                parseInstant: combinedParser
+            )
+            expect(del.contains(oldN) && del.contains(newN) && !del.contains(early), "same day older than 48h keeps earliest only")
+        }
 
         if failures > 0 {
             fputs("\(failures) test(s) failed\n", stderr)
@@ -121,5 +151,18 @@ struct RetentionTests {
         tf.locale = Locale(identifier: "en_US_POSIX")
         tf.isLenient = false
         return { tf.date(from: $0) }
+    }
+
+    private static func makeNewNameParser(timeZone: TimeZone) -> (String) -> Date? {
+        let tf = DateFormatter()
+        tf.dateFormat = "yyyy-MM-dd_HHmmss"
+        tf.timeZone = timeZone
+        tf.locale = Locale(identifier: "en_US_POSIX")
+        tf.isLenient = false
+        return { name in
+            guard SnapshotRetention.isNewFormatCandidate(name) else { return nil }
+            let prefix = String(name.prefix(SnapshotRetention.newFormatInstantPrefixLength))
+            return tf.date(from: prefix)
+        }
     }
 }
