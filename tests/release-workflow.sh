@@ -139,6 +139,9 @@ for wf in "$workflow_dir"/*; do
   if [[ "$text" == *"install-roger-tools.sh"* ]]; then
     fail "$base contains install-roger-tools.sh"
   fi
+  if [[ "$text" == *"install-tools.sh"* ]]; then
+    fail "$base contains install-tools.sh"
+  fi
   if [[ "$text" == *"launchctl"* ]]; then
     fail "$base contains launchctl"
   fi

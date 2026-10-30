@@ -1,0 +1,5 @@
+# Live pin file: ~/.config/backup-folder/pins.txt (not this file).
+# This example documents the format only; it is not the live pin.
+# Each data line is a tool name plus either unpinned or a v* tag (v plus numeric components).
+backup-folder unpinned
+drop-box-watcher unpinned
