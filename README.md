@@ -18,11 +18,13 @@ The tool does this in-process and does not shell out, so a Full Disk Access gran
 
 ## Build
 
-On macOS:
+On macOS, build both `backup-folder` and `drop-box-watcher` with:
 
 ```
-swiftc -O -o backup-folder backup-folder.swift
+bash scripts/build.sh
 ```
+
+When `SIGN_IDENTITY` is set to a certificate common name (for example `Nikolay Botev Code Signing`), the script signs with that identity. When `SIGN_IDENTITY` is unset, it ad-hoc signs each binary. CI exports `VERSION=v0.0.0` for the `macos` job and the CodeQL manual build. For a local build, omit `VERSION` so the stamp uses `git describe --tags --dirty`; the script exits non-zero when it cannot determine a version and does not invent `0.0.0`. Stamped `--version` output includes the short git SHA; `--version --verbose` includes the full SHA from `git rev-parse HEAD` and the UTC build time from `date -u +%Y-%m-%dT%H:%MZ`.
 
 ## Retention
 

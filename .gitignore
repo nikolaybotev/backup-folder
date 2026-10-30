@@ -6,7 +6,8 @@
 *.swiftsourceinfo
 .build/
 build/
-backup-folder
+/backup-folder
 /drop-box-watcher
+Sources/BuildStamp/BuildStamp.swift
 !drop-box-watcher/
 !drop-box-watcher/**

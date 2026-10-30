@@ -4,8 +4,14 @@
 // Retention: every snapshot for 48h, then the first snapshot of each day up to 60 days.
 import Foundation
 import Darwin
+import BuildStamp
 
 let args = CommandLine.arguments
+if args.contains("--version") {
+    let verbose = args.contains("--verbose")
+    print(BuildStamp.versionLine(productName: "backup-folder", verbose: verbose))
+    exit(0)
+}
 guard args.count == 3, args[1].hasPrefix("/"), args[2].hasPrefix("/") else {
     FileHandle.standardError.write("usage: backup-folder /abs/source /abs/backup-dir\n".data(using: .utf8)!); exit(2)
 }
