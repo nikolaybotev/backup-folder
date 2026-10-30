@@ -3,7 +3,7 @@
 | | |
 |---|---|
 | Derived from | [intent.md](intent.md) (2026-10-30) |
-| Status | Draft 2 |
+| Status | Draft 3 |
 | Stage | 2 · Design |
 
 ## 1. Summary
@@ -66,7 +66,7 @@ FR2. `docs/setup.md` stays at 33 bullets that start with `Manual:` or `Script:`.
 
 FR3. Rewrite these setup and restore sentences. Leave every other bullet's procedure in place.
 
-- Computer name: choose a name. macOS publishes it as that name plus `.local`.
+- Computer name: the bullet contains `Choose a computer name`. macOS publishes that name plus `.local`. The catalog anchor is `Choose a computer name`. It is not `.local`, because `.local` is contained in today's `Roger.local`, so `grep -F '.local'` passes before this edit.
 - Self-hosted runner: the step stays unfinished. Do not invent a runner token, label, or install command.
 - External SSD: volume `External` stays. The Time Machine volume is one you name. The quota stays an eight-hundred-gigabyte quota. The next bullet points Time Machine at the volume you named.
 - `gh auth login` is for the GitHub account that administers the Mac. Keep the public URLs `nikolaybotev/bootstrap` and `nikolaybotev/code-signing`. Keep the identity name `Nikolay Botev Code Signing`.
@@ -84,13 +84,23 @@ Replace the sentence that says merging to `main` does not publish a binary. Stat
 
 FR5. `AGENTS.md` keeps the same safety rules and drops the machine name. The owner may run `scripts/install-tools.sh` and `scripts/ensure-backup-dirs.sh`. Agents do not run them against a home directory, do not run `launchctl`, do not write a live pin, and do not edit GitHub rulesets. Branch protection stays managed outside this repo with `gh`. Keep `Nikolay Botev Code Signing`, `com.nikolay.backup.NAME`, `com.nikolay.drop-box-watcher`, and `nikolaybotev/local-skills`. The release bullet stays the description of job `publish`.
 
+A case-insensitive `roger` scan does not enforce the following. Rewrite each so Nikolay is not the person doing the work. The first two contain no `roger`. The last two sit on lines that also name Roger, and they can remain after that name is deleted. The install-tools bullet is the same hole: `Nikolay runs` can remain after `on Roger` is deleted.
+
+- `Nikolay passes absolute home-mirrored snapshot paths` (ensure-backup-dirs bullet).
+- `Nikolay fills them from 1Password at install time` (WireGuard template sentence).
+- `until Nikolay sets a real pin` (pins bullet).
+- `Nikolay follows` the README link (the `~/bin` convention).
+- `Nikolay runs` `bash scripts/install-tools.sh` (install-tools bullet).
+
+`Nikolay Botev Code Signing` stays. Those five phrases are not part of that identity.
+
 FR6. In the `REVIEW.md` compliance bullet, replace only the sentence "These Roger bootstrap phases do not push a `v*` tag." The replacement says agents do not push a `v*` tag by hand, and that job `publish` in `.github/workflows/release.yml` may publish the next patch tag on a push to `main`. Leave the rest of that bullet, including the spec-and-plan match, the plan-update rule, the green `macos` job, and the sentence about `.github/scripts/protect-main-branch.sh` and `.github/workflows/protect-main.yml`. Those two files are absent on this commit; this change does not add them.
 
 In the Important paragraph, stop treating job `publish` in `.github/workflows/release.yml` as a defect. Keep Important for any other workflow that publishes on a push to `main`, and for a secret or tunnel leak, a workflow that installs on a machine, and the snapshot-integrity cases. Style and naming stay nits.
 
 FR7. Do not edit files in `launchd/`, `scripts/`, `pins.txt.example`, or `drop-box-watcher.example.toml`. Checked on this commit, they contain no `roger`. The four launchd files have no XML comments. `drop-box-watcher.example.toml` and `pins.txt.example` have generic `#` comments and no machine name. Script usage text does not name a machine. `tests/no-secrets.sh` requires the backup template's `Label` and `ProgramArguments` to stay `com.nikolay.backup.NAME` and `/Users/USER/bin/backup-folder`, `/ABS/SOURCE`, `/ABS/BACKUP-DIR`. `tests/drop-box-watcher-tests.swift` requires the label `com.nikolay.drop-box-watcher`.
 
-FR8. `tests/setup-docs.sh` stays the catalog check. Update only the anchors that FR1 removes, plus the new setup anchor `drop-box-watcher.plist.template` for the link FR3 adds. Require `.local`, `Time Machine volume`, and `drop-box-watcher.plist.template` in `docs/setup.md`. Do not require `file-access policy` in `docs/setup.md`; that phrase is not a setup step. Require `Time Machine volume` and `file-access policy` in `docs/restore.md`. `file-access policy` replaces the restore anchor `roger-file-access-policy`. Keep every other current anchor, including `install-tools.sh`, `.config/backup-folder/pins.txt`, `pins.txt.example`, `com.nikolay.backup.NAME`, `External`, and `home-mirrored`. Counts stay 33 and 7. Do not add a CI job. `macos` and `linux` stay the required checks. `timeout-minutes` stay 5. CodeQL stays off pull requests.
+FR8. `tests/setup-docs.sh` stays the catalog check. Update only the anchors that FR1 removes, plus the new setup anchor `drop-box-watcher.plist.template` for the link FR3 adds. Require `Choose a computer name`, `Time Machine volume`, and `drop-box-watcher.plist.template` in `docs/setup.md`. Do not use `.local` as that anchor. Do not require `file-access policy` in `docs/setup.md`; that phrase is not a setup step. Require `Time Machine volume` and `file-access policy` in `docs/restore.md`. `file-access policy` replaces the restore anchor `roger-file-access-policy`. Keep every other current anchor, including `install-tools.sh`, `.config/backup-folder/pins.txt`, `pins.txt.example`, `com.nikolay.backup.NAME`, `External`, and `home-mirrored`. Counts stay 33 and 7. Do not add a CI job. `macos` and `linux` stay the required checks. `timeout-minutes` stay 5. CodeQL stays off pull requests.
 
 FR9. The grooming pull request's body reports the remaining-Roger list from that branch, before merge. The scan is case-insensitive `roger` over the long-lived set. For each hit: the file path, a GitHub link to that line on the pull request branch (`https://github.com/nikolaybotev/backup-folder/blob/<branch>/<path>#L<line>`), the exact sentence, and one line on why it is kept. If the scan prints nothing, the body says that no Roger mentions remain in the long-lived docs. The scan does not cover `Nikolay`, `nikolaybotev`, or `com.nikolay`. The body says that in one sentence. What stays is `com.nikolay.*` and `Nikolay Botev Code Signing` (D7), and the repo name plus the public bootstrap and code-signing URLs (D9, FR3). FR2, FR4, and FR5 still remove wording that names Nikolay as the person doing setup. The pull request is opened ready for review. It is not merged in Phase 0.
 
@@ -100,7 +110,7 @@ FR10. The spec-and-plan pull request's diff is only `intent/generic-docs/`. Phas
 
 AC1. The spec-and-plan pull request's diff is only `intent/generic-docs/`.
 
-AC2. On the grooming commit, `git grep -i roger` over the long-lived set in section 5 prints nothing. `README.md` does not contain `does not publish a binary`. `docs/setup.md` contains `drop-box-watcher.plist.template` and does not contain `not in this repo yet`.
+AC2. On the grooming commit, `git grep -i roger` over the long-lived set in section 5 prints nothing. `README.md` does not contain `does not publish a binary`. `docs/setup.md` contains `drop-box-watcher.plist.template` and `Choose a computer name`, and does not contain `not in this repo yet`. `AGENTS.md` does not contain `Nikolay passes absolute`, `Nikolay fills them`, `Nikolay sets a real pin`, `Nikolay follows`, or `Nikolay runs`. It still contains `Nikolay Botev Code Signing`.
 
 AC3. `bash tests/setup-docs.sh` exits 0 and prints `setup-docs: all checks passed`. `docs/setup.md` has 33 `Manual:` or `Script:` bullets. `docs/restore.md` has 7.
 
@@ -130,9 +140,9 @@ AC6. Merging the spec-and-plan pull request still runs job `publish` on `main`. 
 
 **D9 — Historical questions stay historical.** Q1–Q6 stay open in `intent/roger-bootstrap/spec.md`. This change does not answer them and does not edit that file. The user-facing `roger-bootstrap` caveat is removed because it is a machine-named proposal, not a setup step. The repo name in commands stays `nikolaybotev/backup-folder`. Why: D1 forbids editing that spec, and D6 forbids keeping `roger-bootstrap` in the permanent doc. What was rejected: answering Q1 by renaming the repo, and leaving the proposed name in `docs/setup.md`.
 
-**D10 — The catalog test follows the docs.** `tests/setup-docs.sh` is not a long-lived doc. Phase 0 edits its anchors so AC3 can pass. It does not add a required job. Why: the `macos` job already runs that test, and the old anchors require `Roger.local`, `TM Roger`, and `roger-file-access-policy`. What was rejected: keeping those anchors by leaving the names in the docs.
+**D10 — The catalog test follows the docs.** `tests/setup-docs.sh` is not a long-lived doc. Phase 0 edits its anchors so AC3 can pass. It does not add a required job. Why: the `macos` job already runs that test, and the old anchors require `Roger.local`, `TM Roger`, and `roger-file-access-policy`. What was rejected: keeping those anchors by leaving the names in the docs, and replacing `Roger.local` with `.local`. `.local` is contained in `Roger.local`, so that anchor does not prove the computer-name edit. The setup anchor is `Choose a computer name`.
 
-**D11 — Publish-on-merge stays for this spec.** `.github/workflows/release.yml` runs job `publish` on every push to `main`. `scripts/release-version.sh` prints `tag vMAJOR.MINOR.PATCH` with the patch incremented when the merged pull request has neither `release:minor` nor `release:major`. Merging the spec-and-plan pull request does that. This spec does not edit the workflow, the version script, or the labels. On `0b5e84d` the only `vMAJOR.MINOR.PATCH` tag is `v0.1.1`. This spec does not freeze the next number. Another merge can land first. Why: the kickoff says to state this plainly. What was rejected: a release label, a skipped publish, or a hand-pushed tag.
+**D11 — Publish-on-merge stays for this spec.** `.github/workflows/release.yml` runs job `publish` on every push to `main`. `scripts/release-version.sh` prints `tag vMAJOR.MINOR.PATCH` with the patch incremented when the merged pull request has neither `release:minor` nor `release:major`. Merging the spec-and-plan pull request does that. This spec does not edit the workflow, the version script, or the labels. This spec does not name the next tag. The tag list is not stable: every unlabeled merge publishes another patch. Why: the kickoff says to state this plainly. What was rejected: a release label, a skipped publish, or a hand-pushed tag. The earlier claim that `0b5e84d` had only `v0.1.1` was a local `git tag -l` list, not the remote. Section 9 records the remote tags seen when this was corrected.
 
 ## 8. Open questions
 
@@ -140,14 +150,14 @@ None.
 
 ## 9. What was checked
 
-Checked 2026-10-30 against `main` at `0b5e84d057bd266f47d0eccee325e634b28bd7c2` (`feat: local pins file and generic install-tools script (Phase 0) (#26)`). `git tag -l 'v*'` listed only `v0.1.1`. `scripts/release-version.sh` was read and not executed. The unlabeled path calls `gh pr view`.
+Checked 2026-10-30 against `main` at `0b5e84d057bd266f47d0eccee325e634b28bd7c2` (`feat: local pins file and generic install-tools script (Phase 0) (#26)`). A local `git tag -l 'v*'` on that clone listed only `v0.1.1`. That was not the remote list. Rechecked with `git ls-remote --tags origin` on 2026-10-30, after `b2d70f4` was on `main`: `v0.1.1` at `616a904`, `v0.1.2` at `880c2b5`, `v0.1.3` at `0b5e84d`, `v0.1.4` at `b2d70f4`. `v0.1.3` points at `0b5e84d`. `v0.1.4` is the unlabeled merge of the version-minute fix. This list is not stable. This spec does not name the next tag. `scripts/release-version.sh` was read and not executed. The unlabeled path calls `gh pr view`.
 
 Case-insensitive `roger` in the long-lived set, and nowhere else in this list:
 
 - `README.md` lines 5, 39, 49, and 53 name the Mac or say "Nikolay or Roger". Line 60 says merging to `main` does not publish a binary. Line 27 uses `Nikolay Botev Code Signing` as an example identity. Line 49 also distinguishes **Drop Box** from `Dropbox`.
 - `docs/setup.md` title and line 3 name the Mac. Line 13 sets the computer name to `Roger` (`Roger.local`). Line 23 names the Roger self-hosted runner. Lines 30–31 name `TM Roger`. Line 45 leaves a rename to `roger-bootstrap` open. The file has 33 `Manual:` or `Script:` bullets. Line 37 says the drop-box-watcher plist is not in the repo yet and points at `intent/drop-box-watcher/`.
 - `docs/restore.md` title and line 5 name the Mac. Line 9 names `TM Roger`. Line 12 says to install the drop-box-watcher agent "once its template exists." Line 15 names Roger's profile and `roger-file-access-policy`. The file has 7 `Manual:` or `Script:` bullets.
-- `AGENTS.md` lines 14, 17, 23, 30, 46, and 48 name Roger or Roger's home. Line 22 already describes job `publish`. Line 36 names `com.nikolay.backup.NAME` and `/Users/USER/bin/backup-folder`.
+- `AGENTS.md` lines 14, 17, 23, 30, 46, and 48 name Roger or Roger's home. Line 15 says `Nikolay passes absolute home-mirrored snapshot paths` and contains no `roger`. Line 17 also says `until Nikolay sets a real pin`. Line 30 also says `Nikolay follows` the README. Line 37 says `Nikolay fills them from 1Password at install time` and contains no `roger`. Line 14 also says `Nikolay runs` the installer. Line 22 already describes job `publish` and names `Nikolay Botev Code Signing`. Line 36 names `com.nikolay.backup.NAME` and `/Users/USER/bin/backup-folder`.
 - `REVIEW.md` line 9 says "These Roger bootstrap phases do not push a `v*` tag." The Important paragraph treats a release workflow that publishes on a push to `main` as a defect. `.github/scripts/protect-main-branch.sh` and `.github/workflows/protect-main.yml` are not in the tree.
 - `launchd/backup-folder.plist.template`, `launchd/drop-box-watcher.plist.template`, `launchd/com.wireguard.wg0.plist.template`, and `launchd/wg0.conf.template` have no XML comments and no `roger`. `wg0.conf.template` still uses `[SERVER_PUBLIC_KEY]`, `[SERVER_PUBLIC_IP]`, and `[PORT]`. `drop-box-watcher.example.toml` and `pins.txt.example` have no `roger`.
 - `scripts/install-tools.sh`, `scripts/ensure-backup-dirs.sh`, `scripts/build.sh`, and `scripts/release-version.sh` have no `roger`. Their usage text does not name a machine. `scripts/install-tools.sh` is the installer name on this commit. There is no `scripts/install.sh`.

@@ -2,8 +2,8 @@
 
 | | |
 |---|---|
-| Implements | [spec.md](spec.md) Draft 2 |
-| Status | Draft 3 |
+| Implements | [spec.md](spec.md) Draft 3 |
+| Status | Draft 4 |
 | Stage | 3 · Build |
 
 Spec wins. Update this file in the same change whenever implementation departs from it. The only allowed edit under `intent/` during Phase 0 is an appended build note on this file. Do not edit any other `intent/` folder, and do not rewrite the spec.
@@ -19,7 +19,7 @@ The pull request that adds this folder does not start Phase 0. Phase 0 starts on
 | AC | Check | Phase |
 |---|---|---|
 | AC1 | Spec-and-plan diff is only `intent/generic-docs/` | this pull request, not Phase 0 |
-| AC2 | `git grep -i roger` over the long-lived set; README and setup sentences | 0 |
+| AC2 | `git grep -i roger` over the long-lived set; README and setup sentences; the five `AGENTS.md` Nikolay phrases in spec FR5 | 0 |
 | AC3 | `bash tests/setup-docs.sh` | 0 |
 | AC4 | `bash tests/no-secrets.sh`, `bash tests/release-workflow.sh`, `git diff` path list | 0 |
 | AC5 | Grooming pull request body, left unmerged | 0 |
@@ -32,8 +32,8 @@ Files: `README.md`, `docs/setup.md`, `docs/restore.md`, `AGENTS.md`, `REVIEW.md`
 Do not edit: `launchd/`, `scripts/`, `pins.txt.example`, `drop-box-watcher.example.toml`, `.github/workflows/release.yml`, `scripts/release-version.sh`, `.github/workflows/codeql.yml`, `.github/workflows/test.yml`, `.cursor/install.sh`, or any `intent/` folder other than an appended build note on this plan.
 
 1. Apply spec FR2, FR3, and FR4 to `docs/setup.md`, `docs/restore.md`, and `README.md`. Keep the 33 and 7 bullets. Remove every case-insensitive `roger`. Keep volume `External`, the eight-hundred-gigabyte quota, `com.nikolay.backup.NAME`, `com.nikolay.drop-box-watcher`, `Nikolay Botev Code Signing`, and the public `nikolaybotev/bootstrap` and `nikolaybotev/code-signing` URLs. Keep `(Q2)`, `(Q3)`, and `(Q6)`. Point the setup watcher bullet at `launchd/drop-box-watcher.plist.template`. In the restore bullet that repeats LaunchAgent installs, delete "once its template exists" and name that same template. Replace the false "does not publish a binary" sentence as FR4 requires. Leave the README sentences that already say to replace `/ABS/PATH/TO/HOME`. Leave `launchctl bootstrap gui/$(id -u)` as the numeric uid.
-2. Apply spec FR5 to `AGENTS.md` and spec FR6 to `REVIEW.md`. Replace only the compliance sentence that names Roger bootstrap phases. Leave the rest of that bullet, including the absent protect-main sentence. Stop treating job `publish` in `.github/workflows/release.yml` as an Important defect. Keep Important for any other workflow that publishes on a push to `main`. Do not rename the signing identity.
-3. In `tests/setup-docs.sh`, replace the setup anchor `Roger.local` with `.local` and the setup anchor `TM Roger` with `Time Machine volume`. Add `drop-box-watcher.plist.template` to the setup anchors. Do not add `file-access policy` to the setup anchors. Replace the restore anchor `TM Roger` with `Time Machine volume` and the restore anchor `roger-file-access-policy` with `file-access policy`. Leave the other anchors and the counts 33 and 7.
+2. Apply spec FR5 to `AGENTS.md` and spec FR6 to `REVIEW.md`. Remove `Nikolay passes absolute`, `Nikolay fills them`, `Nikolay sets a real pin`, `Nikolay follows`, and `Nikolay runs`. Keep `Nikolay Botev Code Signing`. Replace only the compliance sentence that names Roger bootstrap phases. Leave the rest of that bullet, including the absent protect-main sentence. Stop treating job `publish` in `.github/workflows/release.yml` as an Important defect. Keep Important for any other workflow that publishes on a push to `main`. Do not rename the signing identity.
+3. In `tests/setup-docs.sh`, replace the setup anchor `Roger.local` with `Choose a computer name`. Do not use `.local`. That string is contained in `Roger.local`. Replace the setup anchor `TM Roger` with `Time Machine volume`. Add `drop-box-watcher.plist.template` to the setup anchors. Do not add `file-access policy` to the setup anchors. Replace the restore anchor `TM Roger` with `Time Machine volume` and the restore anchor `roger-file-access-policy` with `file-access policy`. Leave the other anchors and the counts 33 and 7.
 4. Do not rename `scripts/install-tools.sh`. Do not edit a plist. Do not add a template comment. Do not run `scripts/install-tools.sh` or `scripts/ensure-backup-dirs.sh` against a home directory. Do not write `~/Backups`. Do not put a WireGuard key, public IP, or port in the diff.
 5. Open one pull request, ready for review, conventional commit. The body includes the FR9 report: run the grep in the DoD, and either say that no Roger mentions remain in the long-lived docs, or list each hit with `https://github.com/nikolaybotev/backup-folder/blob/<branch>/<path>#L<line>`, the exact sentence, and why it was kept. Also one sentence that the scan does not cover `Nikolay`, `nikolaybotev`, or `com.nikolay`, and that what stays is the signing identity and `com.nikolay.*` labels (spec D7) plus the repo name and the public bootstrap and code-signing URLs (spec D9). Do not merge.
 
@@ -52,8 +52,15 @@ if grep -F 'not in this repo yet' docs/setup.md; then exit 1; fi
 if grep -F 'once its template exists' docs/restore.md; then exit 1; fi
 if grep -F 'file-access policy' docs/setup.md; then exit 1; fi
 grep -F 'drop-box-watcher.plist.template' docs/setup.md
+grep -F 'Choose a computer name' docs/setup.md
 grep -F 'file-access policy' docs/restore.md
 grep -F 'can push the next patch tag' README.md
+grep -F 'Nikolay Botev Code Signing' AGENTS.md
+if grep -F 'Nikolay passes absolute' AGENTS.md; then exit 1; fi
+if grep -F 'Nikolay fills them' AGENTS.md; then exit 1; fi
+if grep -F 'Nikolay sets a real pin' AGENTS.md; then exit 1; fi
+if grep -F 'Nikolay follows' AGENTS.md; then exit 1; fi
+if grep -F 'Nikolay runs' AGENTS.md; then exit 1; fi
 git fetch origin main
 parent="$(git rev-parse HEAD^)"
 base="$(git merge-base HEAD origin/main)"
