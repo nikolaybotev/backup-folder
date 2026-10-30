@@ -49,7 +49,7 @@ DoD: `bash tests/build-entry-test.sh` and `bash tests/linux-unit.sh` exit 0 on L
 
 **Deviation (phase 0 implementation):** Both executable targets set `swiftLanguageMode(.v5)` in `Package.swift`. SPM release builds otherwise apply Swift 6 strict concurrency to top-level code in `main.swift` and fail on macOS CI; the prior `swiftc -O` multi-file build did not. The spec does not name a language mode; this preserves existing runtime behavior.
 
-**Deviation (phase 0 implementation):** `scripts/build.sh` passes `-macosx-version-min 12.0` to `swift build` because SPM without a `platforms` list (FR1) defaults to an older macOS deployment target and the watcher target fails availability on `async`/`actor` APIs. The spec does not set a `platforms` list in `Package.swift`.
+**Deviation (phase 0 implementation):** `scripts/build.sh` runs `swift build -c release --triple arm64-apple-macos12.0` because SPM without a `platforms` list (FR1) defaults to an older macOS deployment target and the watcher target fails availability on `async`/`actor` APIs. The spec does not set a `platforms` list in `Package.swift`.
 
 ## Phase 1 — Tag and publish job
 
