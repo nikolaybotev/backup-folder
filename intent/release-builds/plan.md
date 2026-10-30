@@ -49,6 +49,8 @@ DoD: `bash tests/build-entry-test.sh` and `bash tests/linux-unit.sh` exit 0 on L
 
 **Deviation (phase 0 implementation):** Both executable targets set `swiftLanguageMode(.v5)` in `Package.swift`. SPM release builds otherwise apply Swift 6 strict concurrency to top-level code in `main.swift` and fail on macOS CI; the prior `swiftc -O` multi-file build did not. The spec does not name a language mode; this preserves existing runtime behavior.
 
+**Deviation (phase 0 implementation):** Every target in `Package.swift` passes `-target arm64-apple-macos12.0` via `swiftSettings` (not a `platforms` list per FR1). SPM otherwise defaults to an older macOS deployment and the watcher fails availability on `async`/`actor` and macOS 12 APIs. `scripts/build.sh` also exports `MACOSX_DEPLOYMENT_TARGET=12.0`.
+
 **Deviation (phase 0 implementation):** When `drop-box-watcher/` exists as a directory at the repo root (always in this repo), `scripts/build.sh` copies the watcher executable to `drop-box-watcher/drop-box-watcher` and signs that path. macOS CI cannot also place a root-level file named `drop-box-watcher` beside the source directory. Smokes and the `macos` job use that nested path when the root name is a directory. FR3’s “repo root” copy is satisfied for `backup-folder`; the watcher product path follows the checkout layout.
 
 ## Phase 1 — Tag and publish job

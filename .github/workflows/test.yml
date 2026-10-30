@@ -26,7 +26,12 @@ jobs:
           export VERSION=v0.0.0
           bash scripts/build.sh
           codesign -dv ./backup-folder 2>&1 | grep -q 'Signature=adhoc'
-          codesign -dv ./drop-box-watcher 2>&1 | grep -q 'Signature=adhoc'
+          if [[ -x ./drop-box-watcher/drop-box-watcher ]]; then
+            watcher_bin=./drop-box-watcher/drop-box-watcher
+          else
+            watcher_bin=./drop-box-watcher
+          fi
+          codesign -dv "$watcher_bin" 2>&1 | grep -q 'Signature=adhoc'
           export VERSION=v9.9.9
           bash scripts/build.sh
           head_sha="$(git rev-parse HEAD)"
@@ -49,11 +54,6 @@ jobs:
             exit 1
           fi
           want_w="drop-box-watcher v9.9.9 (${short_sha}, built ${ts})"
-          if [[ -x ./drop-box-watcher/drop-box-watcher ]]; then
-            watcher_bin=./drop-box-watcher/drop-box-watcher
-          else
-            watcher_bin=./drop-box-watcher
-          fi
           got_w="$("$watcher_bin" --version)"
           if [[ "$got_w" != "$want_w" ]]; then
             echo "drop-box-watcher --version mismatch" >&2
