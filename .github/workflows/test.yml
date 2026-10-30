@@ -26,6 +26,10 @@ jobs:
         run: bash tests/no-secrets.sh
       - name: Release workflow static check
         run: bash tests/release-workflow.sh
+      - name: Install tools script test
+        run: bash tests/install-tools-test.sh
+      - name: Ensure backup dirs script test
+        run: bash tests/ensure-backup-dirs-test.sh
 
   linux:
     runs-on: ubuntu-latest
