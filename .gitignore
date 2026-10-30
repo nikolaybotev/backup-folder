@@ -7,3 +7,6 @@
 .build/
 build/
 backup-folder
+/drop-box-watcher
+!drop-box-watcher/
+!drop-box-watcher/**
