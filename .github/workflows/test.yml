@@ -16,7 +16,7 @@ concurrency:
 jobs:
   macos:
     runs-on: macos-latest
-    timeout-minutes: 20
+    timeout-minutes: 5 # hard cap; ~0.3–0.8 min run, queue typically 2–5 s
     steps:
       - name: Check out
         uses: actions/checkout@v4
@@ -39,7 +39,7 @@ jobs:
 
   linux:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 5 # hard cap; ~1–1.5 min run, queue typically 2–5 s
     steps:
       - name: Check out
         uses: actions/checkout@v4
