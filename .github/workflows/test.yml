@@ -64,3 +64,10 @@ jobs:
           eval "$(mise activate bash)"
           swiftc -O -o retention-tests Retention.swift tests/retention-tests.swift
           ./retention-tests
+      - name: Path containment unit tests
+        run: |
+          set -euo pipefail
+          export PATH="${HOME}/.local/bin:${PATH}"
+          eval "$(mise activate bash)"
+          swiftc -o path-tests PathCheck.swift tests/path-tests.swift
+          ./path-tests

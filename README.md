@@ -8,7 +8,7 @@ This repo is also the setup hub for the Mac. First-time setup and restore after 
 backup-folder <src> <dest>
 ```
 
-Both paths must be absolute. The tool strips a trailing slash, then refuses to run if `dest` is the same as `src` or is inside `src`. It creates `dest` if needed and writes a log at `dest/backup.log`.
+Both paths must be absolute. Before creating the backup directory, the tool refuses when the destination is the same as the source or is inside it, comparing lexically normalized paths and symlink-resolved paths (including symlink cycles). It creates `dest` if needed and writes a log at `dest/backup.log`.
 
 Each run clones every file from `src` into a new snapshot directory named `yyyy-MM-dd_HHmmss-<pid>`, with `-2`, `-3`, and so on if that name is already taken. Legacy directories named `yyyy-MM-dd_HHmm` from before this naming change are still recognized for retention. Cloning is file by file (`clonefile` with `CLONE_NOFOLLOW`) because a whole-directory clone is refused inside iCloud-managed folders. Each file is an APFS copy-on-write clone, and a normal copy is used if cloning that file fails; the log records when a file was stored as a full copy. The snapshot is built in a temporary `.inprogress-<name>` directory and renamed into place when every item succeeded.
 

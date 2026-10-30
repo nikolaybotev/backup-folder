@@ -9,11 +9,11 @@ let args = CommandLine.arguments
 guard args.count == 3, args[1].hasPrefix("/"), args[2].hasPrefix("/") else {
     FileHandle.standardError.write("usage: backup-folder /abs/source /abs/backup-dir\n".data(using: .utf8)!); exit(2)
 }
-let src = args[1].hasSuffix("/") ? String(args[1].dropLast()) : args[1]
-let dest = args[2].hasSuffix("/") ? String(args[2].dropLast()) : args[2]
-if dest == src || dest.hasPrefix(src + "/") {
+if PathContainment.refuses(source: args[1], dest: args[2]) {
     FileHandle.standardError.write("backup dir must not be inside source\n".data(using: .utf8)!); exit(2)
 }
+let src = args[1].hasSuffix("/") ? String(args[1].dropLast()) : args[1]
+let dest = args[2].hasSuffix("/") ? String(args[2].dropLast()) : args[2]
 let logPath = dest + "/backup.log"
 let fm = FileManager.default
 
