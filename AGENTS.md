@@ -6,11 +6,12 @@ Small macOS CLI that snapshots a folder with APFS copy-on-write clones (`backup-
 
 - Build (macOS): `swiftc -O -o backup-folder backup-folder.swift` (healthy: `backup-folder` binary in the repo root).
 - Parse-only (Linux cloud VM): `swiftc -parse backup-folder.swift` (healthy: exit 0). Full type-check and link need Darwin; Linux cannot build this binary while the tool imports `Darwin` and calls `clonefile`.
+- Darwin-free unit tests (Linux cloud VM and CI): `bash tests/linux-unit.sh` (healthy: line `linux-unit: OK`). Covers `drop-box-watcher` config, readiness, logging, and webhook notifier logic.
 - CI smoke (macOS): `bash tests/macos-smoke.sh` (healthy: line `macos-smoke: build OK, clonefile probe OK, snapshot OK, COW OK`).
 - Secret scan (Linux or macOS): `bash tests/no-secrets.sh` (healthy: line `no-secrets: all checks passed`). Also runs in the `macos` CI job.
 - Cloud Agent install: `bash .cursor/install.sh` (healthy: `swiftc --version` and skills under `~/.cursor/skills-cursor`).
 - Cloud Agent start: `bash .cursor/start.sh` (no-op for this repo).
-- CI: `.github/workflows/test.yml` (workflow `test`, job `macos`) runs on every pull request and on pushes to `main`. It builds with `swiftc` and runs `tests/macos-smoke.sh` on `macos-latest`. There is no Linux CI job yet: all runtime logic lives in `backup-folder.swift` and requires Darwin.
+- CI: `.github/workflows/test.yml` (workflow `test`, jobs `macos` and `linux`) runs on every pull request and on pushes to `main`. The `macos` job builds with `swiftc` and runs `tests/macos-smoke.sh` on `macos-latest`. The `linux` job installs Swift via `mise` and runs `tests/linux-unit.sh` on `ubuntu-latest`. `backup-folder.swift` is not type-checked or linked on Linux.
 - CodeQL: `.github/workflows/codeql.yml` runs CodeQL (Swift) on pull requests and on pushes to `main` (plus a weekly schedule).
 - Release CD: `.github/workflows/release.yml` runs on tags matching `v*`, builds on `macos-latest`, and uploads the `backup-folder` binary to a GitHub release. Merging to `main` does not publish a release; only a tag push does. The maintainer creates tags when a build is ready for the deployment Mac.
 - Branch protection: managed outside this repo by the deployment Mac with `gh`; agents must not create or change GitHub rulesets.
@@ -32,7 +33,7 @@ Small macOS CLI that snapshots a folder with APFS copy-on-write clones (`backup-
 ## Things agents get wrong
 
 - Do not run `swift build`; there is no `Package.swift`.
-- Do not add a Linux CI job that type-checks or links this file until Darwin-free logic is extracted; a red Linux job is worse than none.
+- Do not add a Linux CI job that type-checks or links `backup-folder.swift` until more Darwin-free logic is extracted; the `linux` job runs only `tests/linux-unit.sh`.
 - Do not claim a GitHub release was published unless a `v*` tag push actually ran `release.yml`.
 - Do not create or change branch protection rulesets in GitHub; the deployment Mac maintains them with `gh`.
 - Cloud Agents on Linux can parse and edit the source but cannot execute `clonefile`, APFS clones, or `launchctl`.
