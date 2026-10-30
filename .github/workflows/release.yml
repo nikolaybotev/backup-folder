@@ -144,7 +144,7 @@ jobs:
           shasum -a 256 ./backup-folder "$watcher_bin" > SHA256SUMS
 
           full_sha="$(git rev-parse HEAD)"
-          build_ts="$("./backup-folder" --version --verbose | sed -n 's/.*built \([^)]*\).*/\1/')"
+          build_ts="$("./backup-folder" --version --verbose | sed -n 's/.*built \([^)]*\).*/\1/p')"
           if [[ -z "$build_ts" ]]; then
             echo "release: could not read build timestamp from backup-folder --version --verbose" >&2
             exit 1
