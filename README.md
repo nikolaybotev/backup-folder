@@ -8,7 +8,7 @@ backup-folder <src> <dest>
 
 Both paths must be absolute. The tool strips a trailing slash, then refuses to run if `dest` is the same as `src` or is inside `src`. It creates `dest` if needed and writes a log at `dest/backup.log`.
 
-Each run clones every file from `src` into a new snapshot directory named `yyyy-MM-dd_HHmm`. Cloning is file by file (`clonefile` with `CLONE_NOFOLLOW`) because a whole-directory clone is refused inside iCloud-managed folders. Each file is an APFS copy-on-write clone, and a normal copy is used if cloning that file fails; the log records when a file was stored as a full copy. The snapshot is built in a temporary `.inprogress-<timestamp>` directory and renamed into place when the walk finishes.
+Each run clones every file from `src` into a new snapshot directory named `yyyy-MM-dd_HHmm`. Cloning is file by file (`clonefile` with `CLONE_NOFOLLOW`) because a whole-directory clone is refused inside iCloud-managed folders. Each file is an APFS copy-on-write clone, and a normal copy is used if cloning that file fails; the log records when a file was stored as a full copy. The snapshot is built in a temporary `.inprogress-<timestamp>` directory and renamed into place when every item succeeded.
 
 The tool does this in-process and does not shell out, so a Full Disk Access grant applies to this binary only.
 
