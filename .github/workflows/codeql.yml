@@ -20,7 +20,7 @@ jobs:
     name: CodeQL (Swift)
     # Traced Swift extraction is unavailable on macOS 27 / Xcode 27; pin macos-26.
     runs-on: macos-26
-    timeout-minutes: 30
+    timeout-minutes: 16 # hard cap ~14 min observed success + buffer
     permissions:
       contents: read
       security-events: write
