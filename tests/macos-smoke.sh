@@ -67,6 +67,30 @@ list_snapshot_dirs() {
     | grep -E "$snap_dir_pattern" || true
 }
 
+assert_file_equals() {
+  local file_path="$1"
+  local expected="$2"
+  local got
+  if ! got="$(cat "$file_path" 2>/dev/null)"; then
+    echo "Cannot read snapshot file: $file_path" >&2
+    ls -la "$(dirname "$file_path")" >&2 || true
+    exit 1
+  fi
+  if [[ "$got" != "$expected" ]]; then
+    echo "Snapshot content mismatch: $file_path" >&2
+    printf '  expected: %q\n' "$expected" >&2
+    printf '  got:      %q\n' "$got" >&2
+    exit 1
+  fi
+}
+
+assert_snapshot_fixtures() {
+  local snap_dir="$1"
+  local expected_a="$2"
+  assert_file_equals "$snap_dir/a.txt" "$expected_a"
+  assert_file_equals "$snap_dir/sub/b.txt" "fixture-two"
+}
+
 "$ROOT/backup-folder" "$SRC" "$DEST"
 
 if ! grep -q 'OK snapshot' "$DEST/backup.log"; then
@@ -87,12 +111,12 @@ if [[ "$snap_count" -ne 1 ]]; then
   exit 1
 fi
 snap="$(list_snapshot_dirs "$DEST" | head -n 1)"
+first_snap="$snap"
 
-test "$(cat "$DEST/$snap/a.txt")" = "fixture-one"
-test "$(cat "$DEST/$snap/sub/b.txt")" = "fixture-two"
+assert_snapshot_fixtures "$DEST/$snap" "fixture-one"
 
 printf 'mutated\n' >"$SRC/a.txt"
-test "$(cat "$DEST/$snap/a.txt")" = "fixture-one"
+assert_snapshot_fixtures "$DEST/$snap" "fixture-one"
 
 "$ROOT/backup-folder" "$SRC" "$DEST"
 snap_count="$(count_snapshot_dirs "$DEST")"
@@ -112,8 +136,11 @@ if [[ "${#snaps[@]}" -ne 2 || "${snaps[0]}" == "${snaps[1]}" ]]; then
   exit 1
 fi
 for s in "${snaps[@]}"; do
-  test "$(cat "$DEST/$s/a.txt")" = "fixture-one"
-  test "$(cat "$DEST/$s/sub/b.txt")" = "fixture-two"
+  if [[ "$s" == "$first_snap" ]]; then
+    assert_snapshot_fixtures "$DEST/$s" "fixture-one"
+  else
+    assert_snapshot_fixtures "$DEST/$s" "mutated"
+  fi
 done
 
 "$ROOT/hold-lock" "$DEST" &
