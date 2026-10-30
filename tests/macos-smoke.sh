@@ -42,7 +42,7 @@ if ! grep -q 'OK snapshot' "$DEST/backup.log"; then
   cat "$DEST/backup.log" >&2 || true
   exit 1
 fi
-if ! grep -q '2 files, 0 full copies' "$DEST/backup.log"; then
+if ! grep -q '4 files, 0 full copies' "$DEST/backup.log"; then
   echo "backup.log missing expected file/fallback counts:" >&2
   cat "$DEST/backup.log" >&2 || true
   exit 1
