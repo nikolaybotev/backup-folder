@@ -33,42 +33,32 @@ jobs:
           fi
           codesign -dv "$watcher_bin" 2>&1 | grep -q 'Signature=adhoc'
           export VERSION=v9.9.9
+          ts_build="$(date -u +%Y-%m-%dT%H:%MZ)"
           bash scripts/build.sh
           head_sha="$(git rev-parse HEAD)"
           short_sha="${head_sha:0:7}"
-          ts="$(date -u +%Y-%m-%dT%H:%MZ)"
-          want_bf="backup-folder v9.9.9 (${short_sha}, built ${ts})"
-          got_bf="$(./backup-folder --version)"
-          if [[ "$got_bf" != "$want_bf" ]]; then
-            echo "backup-folder --version mismatch" >&2
-            echo "  want: $want_bf" >&2
-            echo "  got:  $got_bf" >&2
+          ts_check="$(date -u +%Y-%m-%dT%H:%MZ)"
+          assert_built_minute() {
+            local label="$1"
+            local got="$2"
+            local product="$3"
+            local version="$4"
+            local sha_display="$5"
+            local want_build="${product} ${version} (${sha_display}, built ${ts_build})"
+            local want_check="${product} ${version} (${sha_display}, built ${ts_check})"
+            if [[ "$got" == "$want_build" || "$got" == "$want_check" ]]; then
+              return 0
+            fi
+            echo "${label} mismatch" >&2
+            echo "  want (build minute): $want_build" >&2
+            echo "  want (check minute): $want_check" >&2
+            echo "  got:                 $got" >&2
             exit 1
-          fi
-          want_bf_v="backup-folder v9.9.9 (${head_sha}, built ${ts})"
-          got_bf_v="$(./backup-folder --version --verbose)"
-          if [[ "$got_bf_v" != "$want_bf_v" ]]; then
-            echo "backup-folder --version --verbose mismatch" >&2
-            echo "  want: $want_bf_v" >&2
-            echo "  got:  $got_bf_v" >&2
-            exit 1
-          fi
-          want_w="drop-box-watcher v9.9.9 (${short_sha}, built ${ts})"
-          got_w="$("$watcher_bin" --version)"
-          if [[ "$got_w" != "$want_w" ]]; then
-            echo "drop-box-watcher --version mismatch" >&2
-            echo "  want: $want_w" >&2
-            echo "  got:  $got_w" >&2
-            exit 1
-          fi
-          want_w_v="drop-box-watcher v9.9.9 (${head_sha}, built ${ts})"
-          got_w_v="$("$watcher_bin" --version --verbose)"
-          if [[ "$got_w_v" != "$want_w_v" ]]; then
-            echo "drop-box-watcher --version --verbose mismatch" >&2
-            echo "  want: $want_w_v" >&2
-            echo "  got:  $got_w_v" >&2
-            exit 1
-          fi
+          }
+          assert_built_minute "backup-folder --version" "$(./backup-folder --version)" backup-folder v9.9.9 "$short_sha"
+          assert_built_minute "backup-folder --version --verbose" "$(./backup-folder --version --verbose)" backup-folder v9.9.9 "$head_sha"
+          assert_built_minute "drop-box-watcher --version" "$("$watcher_bin" --version)" drop-box-watcher v9.9.9 "$short_sha"
+          assert_built_minute "drop-box-watcher --version --verbose" "$("$watcher_bin" --version --verbose)" drop-box-watcher v9.9.9 "$head_sha"
       - name: Build entry static check
         run: bash tests/build-entry-test.sh
       - name: Build and APFS smoke test
