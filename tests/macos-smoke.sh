@@ -21,7 +21,7 @@ cleanup() {
     kill "$HOLD_PID" 2>/dev/null || true
     wait "$HOLD_PID" 2>/dev/null || true
   fi
-  rm -rf "$SRC" "$DEST" "$FAIL_SRC" "$FAIL_DEST"
+  rm -rf "$SRC" "$DEST" "$FAIL_SRC" "$FAIL_DEST" "${CONTAIN_SRC:-}"
 }
 trap cleanup EXIT
 
@@ -203,6 +203,16 @@ fail_snap_count="$(count_snapshot_dirs "$FAIL_DEST")"
 if [[ "$fail_snap_count" -ne 0 ]]; then
   echo "failure fixture should leave no snapshot directory, found count=${fail_snap_count}" >&2
   ls -la "$FAIL_DEST" >&2
+  exit 1
+fi
+
+CONTAIN_SRC="$(mktemp -d)"
+set +e
+"$ROOT/backup-folder" "${CONTAIN_SRC}//" "${CONTAIN_SRC}/backup" >/dev/null 2>&1
+contain_exit=$?
+set -e
+if [[ "$contain_exit" -ne 2 ]]; then
+  echo "Expected exit 2 for doubled-slash source with dest inside, got ${contain_exit}" >&2
   exit 1
 fi
 
