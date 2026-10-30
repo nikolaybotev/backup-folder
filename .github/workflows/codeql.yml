@@ -20,7 +20,7 @@ jobs:
     name: CodeQL (Swift)
     # Traced Swift extraction is unavailable on macOS 27 / Xcode 27; pin macos-26.
     runs-on: macos-26
-    timeout-minutes: 16 # hard cap ~14 min observed success + buffer
+    timeout-minutes: 10 # hard cap; -Onone compile ~8–14 min, queue typically 2–5 s
     permissions:
       contents: read
       security-events: write
@@ -36,9 +36,11 @@ jobs:
           build-mode: manual
 
       - name: Build for CodeQL
+        env:
+          SWIFTC_OPT: -Onone
         run: |
           bash tests/build-backup-folder.sh "$RUNNER_TEMP/backup-folder"
-          swiftc -O -o "$RUNNER_TEMP/drop-box-watcher" \
+          swiftc -Onone -o "$RUNNER_TEMP/drop-box-watcher" \
             drop-box-watcher/Config.swift \
             drop-box-watcher/Readiness.swift \
             drop-box-watcher/Log.swift \
