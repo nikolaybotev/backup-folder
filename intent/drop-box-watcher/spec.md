@@ -69,7 +69,7 @@ FR2. **Arguments.** The process takes one argument, the path of the config file.
 FR3. **Config file.** The file is TOML, mode with no group or other permission bits (`mode & 0o077 == 0`), checked before the file is parsed. A looser mode exits 2 and does not parse the secret. The parser accepts only this shape:
 
 - `watch_folder`, a basic string, absolute path.
-- `[webhook]` with basic strings `url` and `key`. `key` is non-empty. `url` is `https`, or `http` whose host is `127.0.0.1` or `localhost` and which has an explicit port.
+- `[webhook]` with basic strings `url` and `key`. `key` is non-empty. `url` is `https`, or `http` whose host is the IPv4 loopback address or `localhost` and which has an explicit port.
 - `[behavior]` with `ignore`, an array of basic strings. Each pattern is a file name: no `/`. `*` matches any run of characters in that name. Every other character is literal and case-sensitive.
 - `[log]` with basic string `path`.
 - `#` comments, blank lines, and basic-string escapes `\\` and `\"`.
@@ -178,7 +178,7 @@ AC11. The iCloud flag measurement on Roger is not a CI check. The implementation
 
 **D16 — CI shape.** The required macOS check keeps the snapshot smoke and gains the watcher build and the Darwin-free tests. A new `linux` job runs only the Darwin-free script. It follows `.cursor/install.sh` through `mise install` and `mise reshim` so Swift 6.4 is on `PATH`. `ubuntu-latest` has neither `mise` nor `swiftc`. The job does not run the skills installer at the end of that script. The `macos` job keeps `timeout-minutes: 20`. CodeQL stays one Swift job and its build line compiles both binaries. The release workflow uploads both on a tag and is not run by these phases. Branch protection and the CodeQL sentence in `AGENTS.md` are outside this intent.
 
-**D17 — Loopback HTTP.** The real webhook is `https`, because the value is a bearer secret. `http://127.0.0.1` and `http://localhost` with an explicit port are accepted so the macOS smoke can receive a POST without a secret leaving the machine.
+**D17 — Loopback HTTP.** The real webhook is `https`, because the value is a bearer secret. `http` to the IPv4 loopback address and `http://localhost` with an explicit port are accepted so the macOS smoke can receive a POST without a secret leaving the machine.
 
 ## 8. Open questions
 
