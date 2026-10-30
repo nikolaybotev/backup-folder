@@ -13,4 +13,5 @@ trap cleanup EXIT
 ln -s "$ROOT/backup-folder.swift" "$BUILD_DIR/main.swift"
 ln -s "$ROOT/Retention.swift" "$BUILD_DIR/Retention.swift"
 ln -s "$ROOT/PathCheck.swift" "$BUILD_DIR/PathCheck.swift"
-swiftc -O -o "$OUT" "$BUILD_DIR/main.swift" "$BUILD_DIR/Retention.swift" "$BUILD_DIR/PathCheck.swift"
+ln -s "$ROOT/WalkPolicy.swift" "$BUILD_DIR/WalkPolicy.swift"
+swiftc -O -o "$OUT" "$BUILD_DIR/main.swift" "$BUILD_DIR/Retention.swift" "$BUILD_DIR/PathCheck.swift" "$BUILD_DIR/WalkPolicy.swift"
