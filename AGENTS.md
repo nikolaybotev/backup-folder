@@ -13,7 +13,7 @@ Small macOS CLI that snapshots a folder with APFS copy-on-write clones (`backup-
 - Cloud Agent start: `bash .cursor/start.sh` (no-op for this repo).
 - CI: `.github/workflows/test.yml` (workflow `test`, jobs `macos` and `linux`) runs on every pull request and on pushes to `main`. The `macos` job builds with `swiftc` and runs `tests/macos-smoke.sh` on `macos-latest`. The `linux` job installs Swift via `mise` and runs `tests/linux-unit.sh` on `ubuntu-latest`. `backup-folder.swift` is not type-checked or linked on Linux.
 - CodeQL: `.github/workflows/codeql.yml` runs CodeQL (Swift) on pull requests and on pushes to `main` (plus a weekly schedule).
-- Release CD: `.github/workflows/release.yml` runs on tags matching `v*`, builds on `macos-latest`, and uploads the `backup-folder` binary to a GitHub release. Merging to `main` does not publish a release; only a tag push does. The maintainer creates tags when a build is ready for the deployment Mac.
+- Release CD: `.github/workflows/release.yml` runs on tags matching `v*` on `macos-latest`, attests each built binary with GitHub artifact attestation, verifies with `gh attestation verify`, then uploads the binaries to a GitHub release. Merging to `main` does not publish a release; only a `v*` tag push does. Do not claim a release ran unless that tag push happened. The maintainer creates tags when a build is ready for the deployment Mac.
 - Branch protection: managed outside this repo by the deployment Mac with `gh`; agents must not create or change GitHub rulesets.
 
 ## Conventions
