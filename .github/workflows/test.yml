@@ -22,6 +22,10 @@ jobs:
         uses: actions/checkout@v4
       - name: Build and APFS smoke test
         run: bash tests/macos-smoke.sh
+      - name: Drop Box watcher macOS smoke
+        run: bash tests/macos-watcher.sh
+      - name: Darwin-free unit tests
+        run: bash tests/linux-unit.sh
       - name: Secret and template scan
         run: bash tests/no-secrets.sh
       - name: Release workflow static check
@@ -71,10 +75,3 @@ jobs:
           eval "$(mise activate bash)"
           swiftc -o path-tests PathCheck.swift tests/path-tests.swift
           ./path-tests
-      - name: Walk policy unit tests
-        run: |
-          set -euo pipefail
-          export PATH="${HOME}/.local/bin:${PATH}"
-          eval "$(mise activate bash)"
-          swiftc -o walk-tests WalkPolicy.swift tests/walk-tests.swift
-          ./walk-tests
