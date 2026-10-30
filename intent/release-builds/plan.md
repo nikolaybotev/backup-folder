@@ -67,6 +67,8 @@ The pull request does not push a tag and does not set the secrets. After it is o
 
 DoD: `bash tests/release-version-test.sh` and `bash tests/release-workflow.sh` exit 0. `bash tests/linux-unit.sh` still prints `linux-unit: OK`. The repo root has no `VERSION` file.
 
+**Deviation (phase 1 implementation):** `docs/setup.md` gains the code-signing bullet and `tests/setup-docs.sh` expects 33 setup bullets (including anchor `code-signing`) in this phase so setup docs point at [nikolaybotev/code-signing](https://github.com/nikolaybotev/code-signing) without repeating the openssl procedure. Phase 2 still rewrites the README signing section, watcher install bullets, and the `Nikolay Botev Code Signing` setup anchor from FR18.
+
 ## Phase 2 — Install script and docs
 
 Files: `scripts/install-roger-tools.sh`, `tests/install-roger-tools-test.sh`, `README.md`, `docs/setup.md`, `tests/setup-docs.sh`, `AGENTS.md`.

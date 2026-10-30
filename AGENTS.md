@@ -19,7 +19,7 @@ Small macOS CLI that snapshots a folder with APFS copy-on-write clones (`backup-
 - Cloud Agent start: `bash .cursor/start.sh` (no-op for this repo).
 - CI: `.github/workflows/test.yml` (workflow `test`, jobs `macos` and `linux`) runs on every pull request and on pushes to `main`. Required pull request checks are `macos` and `linux`. The `macos` job exports `VERSION=v0.0.0`, runs `bash scripts/build.sh`, then runs `tests/macos-smoke.sh`, `tests/macos-watcher.sh`, and `tests/linux-unit.sh`, plus script and template checks on `macos-latest`. The `linux` job on `ubuntu-latest` installs Swift via `mise`, runs `tests/build-entry-test.sh`, `tests/linux-unit.sh`, compiles `Sources/backup-folder/Retention.swift` with `tests/retention-tests.swift`, and compiles `Sources/backup-folder/PathCheck.swift` with `tests/path-tests.swift`; it does not build the package or compile `Sources/backup-folder/main.swift`.
 - CodeQL: `.github/workflows/codeql.yml` runs job `CodeQL (Swift)` on pushes to `main` and on a nightly schedule (06:00 UTC), with `timeout-minutes: 30`. The manual build exports `VERSION=v0.0.0` and runs `bash scripts/build.sh`. It does not run on pull requests.
-- Release CD: `.github/workflows/release.yml` runs on tags matching `v*` on `macos-latest`, attests each built binary with GitHub artifact attestation, verifies with `gh attestation verify`, then uploads `backup-folder` and `drop-box-watcher` to a GitHub release. Merging to `main` does not publish a release through that workflow until a later phase replaces it. Do not claim a release ran unless a `v*` tag push actually ran `release.yml`. Nikolay creates tags when a build is ready for Roger.
+- Release CD: `.github/workflows/release.yml` runs job `publish` on every push to `main`. That job reads release labels on the merged pull request, may push one lightweight `vMAJOR.MINOR.PATCH` tag with `GITHUB_TOKEN`, signs both arm64 binaries with `Nikolay Botev Code Signing`, attests them, writes `SHA256SUMS`, and publishes one GitHub release. It does not push a commit to `main`. Do not claim a release ran unless that publish job succeeded. Agents do not push tags by hand.
 - Branch protection: managed outside this repo by Roger with `gh`; agents must not create or change GitHub rulesets.
 
 ## Conventions
@@ -42,7 +42,7 @@ Small macOS CLI that snapshots a folder with APFS copy-on-write clones (`backup-
 
 - Do not run bare `swift build` for product binaries; use `bash scripts/build.sh` on macOS.
 - Do not add a Linux CI job that type-checks or links `Sources/backup-folder/main.swift`; the existing `linux` job runs `tests/linux-unit.sh`, the retention unit tests, and `path-tests` only.
-- Do not claim a GitHub release was published unless a `v*` tag push actually ran `release.yml`.
+- Do not claim a GitHub release was published unless the `publish` job on a push to `main` succeeded.
 - Do not create or change branch protection rulesets in GitHub; Roger maintains them with `gh`.
 - Cloud Agents on Linux can parse and edit the source but cannot execute `clonefile`, APFS clones, or `launchctl`.
 - Agents do not run [`docs/setup.md`](docs/setup.md) or [`docs/restore.md`](docs/restore.md) on a live Mac, do not run `scripts/install-roger-tools.sh` against Roger's home, and do not run `launchctl` on Roger.
