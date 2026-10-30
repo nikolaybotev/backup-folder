@@ -27,8 +27,8 @@ count_marked_bullets() {
 setup_count="$(count_marked_bullets "$SETUP")"
 restore_count="$(count_marked_bullets "$RESTORE")"
 
-if [[ "$setup_count" -ne 32 ]]; then
-  fail "docs/setup.md must have 32 Manual/Script bullets (found $setup_count)"
+if [[ "$setup_count" -ne 33 ]]; then
+  fail "docs/setup.md must have 33 Manual/Script bullets (found $setup_count)"
 fi
 if [[ "$restore_count" -ne 7 ]]; then
   fail "docs/restore.md must have 7 Manual/Script bullets (found $restore_count)"
@@ -82,6 +82,7 @@ setup_anchors=(
   'Time Machine volume'
   'External'
   'install-tools.sh'
+  'code-signing'
   'ensure-backup-dirs.sh'
   'home-mirrored'
   'com.nikolay.backup.NAME'
