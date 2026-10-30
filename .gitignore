@@ -8,6 +8,7 @@
 build/
 /backup-folder
 /drop-box-watcher
+/pins.txt
 Sources/BuildStamp/BuildStamp.swift
 !drop-box-watcher/
 !drop-box-watcher/**

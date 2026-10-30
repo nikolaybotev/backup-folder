@@ -1,13 +1,14 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 GH_REPO="${GH_REPO:-nikolaybotev/backup-folder}"
-PINS_FILE="${PINS_FILE:-$ROOT/pins.txt}"
+if [[ -z "${PINS_FILE:-}" ]]; then
+  PINS_FILE="${HOME}/.config/backup-folder/pins.txt"
+fi
 
 # Refusal check: uid 0 or any path component of install_dir named Backups.
 # Sourced by tests; pass uid as the first argument.
-roger_install_refuse() {
+install_refuse() {
   local uid="$1"
   local install_dir="${2:-${HOME}/bin}"
   if [[ "$uid" -eq 0 ]]; then
@@ -47,7 +48,7 @@ install_pinned_tool() {
   local install_dir="${HOME}/bin"
   local dest="${install_dir}/${tool}"
   local tmp
-  tmp="$(mktemp "${TMPDIR:-/tmp}/roger-install.XXXXXX")"
+  tmp="$(mktemp "${TMPDIR:-/tmp}/install-tools.XXXXXX")"
   if ! gh release download "$tag" --repo "$GH_REPO" --pattern "$tool" --output "$tmp"; then
     rm -f "$tmp"
     return 1
@@ -62,13 +63,13 @@ install_pinned_tool() {
 }
 
 main() {
-  if ! roger_install_refuse "$(id -u)" "${HOME}/bin"; then
-    echo "install-roger-tools: refused (root or Backups install path)" >&2
+  if ! install_refuse "$(id -u)" "${HOME}/bin"; then
+    echo "install-tools: refused (root or Backups install path)" >&2
     exit 1
   fi
 
   [[ -f "$PINS_FILE" ]] || {
-    echo "install-roger-tools: missing pins file: $PINS_FILE" >&2
+    echo "install-tools: missing pins file: $PINS_FILE" >&2
     exit 1
   }
 
@@ -85,15 +86,15 @@ main() {
   for line in "${entries[@]}"; do
     read -r tool tag <<<"$line"
     if [[ -z "${tool:-}" || -z "${tag:-}" ]]; then
-      echo "install-roger-tools: invalid pins line: $line" >&2
+      echo "install-tools: invalid pins line: $line" >&2
       exit 1
     fi
     if ! valid_tool_name "$tool"; then
-      echo "install-roger-tools: invalid tool name: $tool" >&2
+      echo "install-tools: invalid tool name: $tool" >&2
       exit 1
     fi
     if ! valid_pin_tag "$tag"; then
-      echo "install-roger-tools: invalid pin tag: $tag" >&2
+      echo "install-tools: invalid pin tag: $tag" >&2
       exit 1
     fi
   done
@@ -101,14 +102,14 @@ main() {
   for line in "${entries[@]}"; do
     read -r tool tag <<<"$line"
     if [[ "$tag" == "unpinned" ]]; then
-      echo "install-roger-tools: skip $tool (unpinned)"
+      echo "install-tools: skip $tool (unpinned)"
       continue
     fi
     if ! install_pinned_tool "$tool" "$tag"; then
-      echo "install-roger-tools: failed to install $tool at $tag" >&2
+      echo "install-tools: failed to install $tool at $tag" >&2
       exit 1
     fi
-    echo "install-roger-tools: installed $tool at $tag"
+    echo "install-tools: installed $tool at $tag"
   done
 }
 

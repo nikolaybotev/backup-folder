@@ -89,6 +89,8 @@ if got != want_lines:
 print("plist and wg0.conf.template structure OK")
 PY
 
+[[ -f "$ROOT/pins.txt.example" ]] || fail "missing pins.txt.example"
+
 scan_paths=()
 scan_paths+=("$ROOT/intent")
 scan_paths+=("$ROOT/launchd")
@@ -111,6 +113,7 @@ for rel in [
     "docs",
     "scripts",
     "README.md",
+    "pins.txt.example",
     "pins.txt",
     ".github/workflows",
 ]:
@@ -143,7 +146,7 @@ ipv6 = re.compile(
 )
 
 workflow_banned = re.compile(
-    r"scripts/install-roger-tools\.sh|launchctl|\bBackups\b"
+    r"scripts/install-tools\.sh|scripts/install-roger-tools\.sh|launchctl|\bBackups\b"
 )
 
 violations: list[str] = []
