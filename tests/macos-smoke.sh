@@ -278,8 +278,10 @@ while kill -0 "$FIFO_PID" 2>/dev/null; do
   fi
   sleep 0.2
 done
+set +e
 wait "$FIFO_PID"
 fifo_exit=$?
+set -e
 FIFO_PID=""
 if [[ "$fifo_exit" -eq 0 ]]; then
   echo "Expected non-zero exit for fifo fixture, got ${fifo_exit}" >&2
