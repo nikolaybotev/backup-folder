@@ -30,7 +30,7 @@ After each snapshot the tool prunes `dest`, considering snapshot directories in 
 
 ## How it runs
 
-Run one hourly LaunchAgent per folder. Each agent invokes this binary with that folder's source and backup directory. A template with placeholder paths is in [`launchd/backup-folder.plist.template`](launchd/backup-folder.plist.template). Copy it to `~/Library/LaunchAgents/`, replace the placeholders, and load it with `launchctl`.
+Run one LaunchAgent per folder. Each agent invokes `~/bin/backup-folder` hourly at minute 0 with that folder's source and home-mirrored backup directory. The template label is `com.nikolay.backup.NAME` (replace `NAME`, `USER`, `/ABS/SOURCE`, and `/ABS/BACKUP-DIR` in [`launchd/backup-folder.plist.template`](launchd/backup-folder.plist.template)). Copy the filled plist to `~/Library/LaunchAgents/` and load it with `launchctl bootstrap gui/$(id -u)`. Loading agents on the Mac is manual; CI does not install them.
 
 ## macOS for a real build and test
 
