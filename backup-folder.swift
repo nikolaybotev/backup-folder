@@ -63,7 +63,11 @@ func cloneTree(_ s: String, _ d: String) {
     }
 }
 cloneTree(src, tmp)
-if failures > 0 { log("WARNING: \(failures) item(s) failed in \(ts)") }
+if failures > 0 {
+    log("ERROR: \(failures) item(s) failed in \(ts); not publishing")
+    do { try fm.removeItem(atPath: tmp) } catch { log("ERROR: remove \(tmp): \(error)") }
+    exit(1)
+}
 do { try fm.moveItem(atPath: tmp, toPath: final) } catch { log("ERROR: rename failed: \(error)"); exit(1) }
 var count = 0
 if let e = fm.enumerator(atPath: final) { while let p = e.nextObject() as? String { var d: ObjCBool = false; if fm.fileExists(atPath: final + "/" + p, isDirectory: &d), !d.boolValue { count += 1 } } }
