@@ -10,7 +10,9 @@ backup-folder <src> <dest>
 
 Both paths must be absolute. The tool strips a trailing slash, then refuses to run if `dest` is the same as `src` or is inside `src`. It creates `dest` if needed and writes a log at `dest/backup.log`.
 
-Each run clones every file from `src` into a new snapshot directory named `yyyy-MM-dd_HHmm`. Cloning is file by file (`clonefile` with `CLONE_NOFOLLOW`) because a whole-directory clone is refused inside iCloud-managed folders. Each file is an APFS copy-on-write clone, and a normal copy is used if cloning that file fails; the log records when a file was stored as a full copy. The snapshot is built in a temporary `.inprogress-<timestamp>` directory and renamed into place when every item succeeded.
+Each run clones every file from `src` into a new snapshot directory named `yyyy-MM-dd_HHmmss-<pid>`, with `-2`, `-3`, and so on if that name is already taken. Legacy directories named `yyyy-MM-dd_HHmm` from before this naming change are still recognized for retention. Cloning is file by file (`clonefile` with `CLONE_NOFOLLOW`) because a whole-directory clone is refused inside iCloud-managed folders. Each file is an APFS copy-on-write clone, and a normal copy is used if cloning that file fails; the log records when a file was stored as a full copy. The snapshot is built in a temporary `.inprogress-<name>` directory and renamed into place when every item succeeded.
+
+If another run is already walking or pruning the same `dest`, the tool logs `skipped; dest busy` and exits without starting a new walk. Stale `.inprogress-*` directories under `dest` are removed only while the dest lock is held.
 
 The tool does this in-process and does not shell out, so a Full Disk Access grant applies to this binary only.
 
@@ -24,7 +26,7 @@ swiftc -O -o backup-folder backup-folder.swift
 
 ## Retention
 
-After each snapshot the tool prunes `dest`, considering snapshot directories in chronological order:
+After each snapshot the tool prunes `dest`, considering snapshot directories in chronological order. Both `yyyy-MM-dd_HHmm` and `yyyy-MM-dd_HHmmss-<pid>` names are candidates:
 
 - Every snapshot from the last 48 hours is kept.
 - After that, one snapshot per day is kept for 60 days (the earliest that day).
