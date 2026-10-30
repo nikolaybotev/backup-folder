@@ -33,7 +33,7 @@ jobs:
 
   linux:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       - name: Check out
         uses: actions/checkout@v4
@@ -55,3 +55,10 @@ jobs:
           swiftc --version
       - name: Darwin-free unit tests
         run: bash tests/linux-unit.sh
+      - name: Retention unit tests
+        run: |
+          set -euo pipefail
+          export PATH="${HOME}/.local/bin:${PATH}"
+          eval "$(mise activate bash)"
+          swiftc -O -o retention-tests Retention.swift tests/retention-tests.swift
+          ./retention-tests
