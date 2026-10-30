@@ -41,3 +41,18 @@ Run one LaunchAgent per folder. Each agent invokes `~/bin/backup-folder` hourly 
 `clonefile` and `launchd` are macOS-only, so building a binary that can take snapshots and scheduling it needs a Mac.
 
 Cloud agents boot the default image and run [`.cursor/install.sh`](.cursor/install.sh). That installs `libncurses6` (the Swift Linux toolchain needs `libncurses.so.6`, `libform.so.6`, and `libpanel.so.6`), then [mise](https://mise.jdx.dev/) and the Swift release pinned in [`mise.toml`](mise.toml). The Linux toolchain can read and edit this file. It cannot APFS-clone files or load a LaunchAgent.
+
+## drop-box-watcher
+
+`drop-box-watcher` watches one folder (Roger's iCloud **Drop Box** folder on Desktop; Apple's iCloud exclude list uses the name `Dropbox`, which is not this folder). When a file is fully present on disk, it POSTs a nudge to a Grok Bot routine webhook. Roger lists the folder and moves files; the watcher does not.
+
+Example config: [`drop-box-watcher.example.toml`](drop-box-watcher.example.toml). LaunchAgent template: [`launchd/drop-box-watcher.plist.template`](launchd/drop-box-watcher.plist.template) (label `com.nikolay.drop-box-watcher`).
+
+**Manual install on a Mac (Nikolay or Roger; not CI or cloud agents):**
+
+1. Put the release or locally built binary at `$HOME/bin/drop-box-watcher`.
+2. Copy the example config to `$HOME/.config/drop-box-watcher/config.toml`, replace every `/ABS/PATH/TO/HOME` placeholder with your absolute home path, set the real webhook URL and routine key, and run `chmod 0600` on that file. Keep this directory outside iCloud Desktop and Documents and outside `~/Backups`.
+3. Copy the filled plist to `$HOME/Library/LaunchAgents/com.nikolay.drop-box-watcher.plist`, replacing the same absolute-path placeholders (including the binary, config, and log paths in `ProgramArguments`, `StandardOutPath`, and `StandardErrorPath`).
+4. Load the agent: `launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.nikolay.drop-box-watcher.plist`.
+
+The first run may prompt for Desktop folder access. Merging to `main` does not publish a binary; Nikolay pushes a `v*` tag when a GitHub release should exist. CI and agents do not copy the binary into `~/bin`, write the real config, or load this LaunchAgent.

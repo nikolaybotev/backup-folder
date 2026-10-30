@@ -1,0 +1,14 @@
+# Example only. Copy to ~/.config/drop-box-watcher/config.toml, chmod 0600, and replace placeholders.
+# Do not commit the real file or a routine key.
+
+watch_folder = "/ABS/PATH/TO/HOME/Desktop/Drop Box"
+
+[webhook]
+url = "https://example.invalid/routine"
+key = "REPLACE-WITH-ROUTINE-KEY"
+
+[behavior]
+ignore = [".DS_Store", ".*", "*.icloud", "*.download", "*.crdownload", "*.part"]
+
+[log]
+path = "/ABS/PATH/TO/HOME/.local/state/drop-box-watcher/log"
