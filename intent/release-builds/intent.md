@@ -15,9 +15,9 @@ Nikolay is holding off on installing the watcher until backup-folder and drop-bo
 
 ## Proposed outcome
 
-Both tools share one Swift package and one build script. A merge to `main` publishes one GitHub release with arm64 macOS binaries and checksums. The release job signs both binaries with the self-signed identity `Nikolay Botev Code Signing`. Roger installs a pinned release with `gh release download` and a checksum check.
+Both tools share one Swift package and one build script. A merge to `main` publishes one GitHub release with arm64 macOS binaries and checksums. The version is a git tag. There is no `VERSION` file, and the release workflow does not push commits to `main`. The release job signs both binaries with the self-signed identity `Nikolay Botev Code Signing`. Roger installs a pinned release with `gh release download` and a checksum check.
 
-The signing paragraphs in the original prompt are not the signing requirement. The signing corrections below replace them. Ad-hoc signing remains only when `SIGN_IDENTITY` is unset.
+The signing paragraphs in the original prompt are not the signing requirement. The signing corrections below replace them. Ad-hoc signing remains only when `SIGN_IDENTITY` is unset. The `VERSION` file in the kickoff is not the version scheme. The tag decision at the end of this file replaces it.
 
 ## Affected users and systems
 
@@ -34,7 +34,7 @@ The signing paragraphs in the original prompt are not the signing requirement. T
 
 ## Open questions (carried into spec.md)
 
-None. The version-bump push is a gate in the plan, recorded from the ruleset check, not an open design question.
+None. Ruleset 26167970 targets the default branch, not tags. The release workflow does not push to `main`.
 
 ## Original prompt (verbatim)
 
@@ -103,4 +103,17 @@ Nikolay is creating the certificate now. Use these details exactly. Do not gener
 - The one-time setup doc must match this procedure: create with openssl, `security import` plus `add-trusted-cert -p codeSign`, `gh secret set` from stdin, a copy in 1Password, delete the temp files. Do not include secret values, the password, or the .p12.
 
 Still spec and plan only. Keep the other constraints.
+```
+
+## Tag version (verbatim)
+
+```
+Nikolay decided, in his own words: "Use git tags for the version, no VERSION file, and leave the protection unchanged."
+
+- No VERSION file. Nothing is ever pushed to main by the release workflow. Ruleset 26167970 stays exactly as it is: no bypass, no new token, no PAT.
+- On each push to main, the release workflow finds the latest v* tag (v0.1.0 if there is none yet) and computes the next version: a patch bump by default, minor or major when the merged PR has the label release:minor or release:major. It then pushes only the tag with GITHUB_TOKEN and publishes the GitHub release in the same workflow run, because tags pushed by GITHUB_TOKEN do not trigger other workflows.
+- Check the live ruleset 26167970 and record what you found: the user expects it targets the main branch, not tags. If tags are protected too, write that as an open gate. Do not change the ruleset.
+- scripts/build.sh stamps the version into both binaries (a --version flag) from an env var, falling back to git describe --tags for local builds.
+- Keep everything else: identity "Nikolay Botev Code Signing", secrets MACOS_SIGNING_P12_BASE64 and MACOS_SIGNING_P12_PASSWORD, codesign --verify --strict (not spctl), temp keychain always deleted, missing secrets fail the release job, SIGN_IDENTITY or ad-hoc for local builds, macos and linux timeout-minutes 5, CodeQL off pull requests, no new required check. If that last one changes, say the exact job name.
+- Still spec and plan only. Push to the existing PR. Report the new SHA and the ruleset-vs-tags finding.
 ```
