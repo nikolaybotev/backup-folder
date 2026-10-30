@@ -24,3 +24,28 @@ jobs:
         run: bash tests/macos-smoke.sh
       - name: Secret and template scan
         run: bash tests/no-secrets.sh
+
+  linux:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+      - name: Install Swift toolchain
+        run: |
+          set -euo pipefail
+          if [ ! -x "${HOME}/.local/bin/mise" ]; then
+            curl -fsSL https://mise.run/bash | sh
+          fi
+          export PATH="${HOME}/.local/bin:${PATH}"
+          eval "$(mise activate bash)"
+          if ! ldconfig -p 2>/dev/null | grep -q 'libncurses\.so\.6'; then
+            sudo apt-get update
+            sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends libncurses6
+          fi
+          mise trust --yes
+          mise install
+          mise reshim
+          swiftc --version
+      - name: Darwin-free unit tests
+        run: bash tests/linux-unit.sh
