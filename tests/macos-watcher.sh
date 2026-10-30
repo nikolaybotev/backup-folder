@@ -10,10 +10,15 @@ fi
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
-TMPROOT="$(mktemp -d "${TMPDIR:-/tmp}/macos-watcher-XXXXXX")"
+BIN="$ROOT/drop-box-watcher"
+if [[ ! -x "$BIN" ]]; then
+  echo "Missing drop-box-watcher binary; run bash scripts/build.sh" >&2
+  exit 1
+fi
+
+TMPROOT="$(mktemp -d "${TMPDIR:-/tmp}/macos-watcher-XXXXXX")
 REAL_WATCH="$TMPROOT/watch-real"
 LINK_WATCH="/tmp/macos-watcher-watch-$$"
-BIN="$TMPROOT/drop-box-watcher"
 LOG="$TMPROOT/watcher.log"
 POSTS="$TMPROOT/posts.jsonl"
 WATCHER_STDERR="$TMPROOT/watcher.stderr"
@@ -31,16 +36,6 @@ cleanup() {
   rm -rf "$TMPROOT"
 }
 trap cleanup EXIT
-
-swiftc -O \
-  drop-box-watcher/Config.swift \
-  drop-box-watcher/Readiness.swift \
-  drop-box-watcher/Log.swift \
-  drop-box-watcher/WebhookHTTP.swift \
-  drop-box-watcher/WebhookNotifier.swift \
-  drop-box-watcher/Watcher.swift \
-  drop-box-watcher/main.swift \
-  -o "$BIN"
 
 echo "macos-watcher: build OK"
 

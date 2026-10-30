@@ -7,7 +7,11 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
-bash tests/build-backup-folder.sh
+if [[ ! -x "$ROOT/backup-folder" ]]; then
+  echo "Missing backup-folder binary; run bash scripts/build.sh" >&2
+  exit 1
+fi
+
 swiftc -O -o clonefile-probe tests/clonefile-probe.swift
 swiftc -O -o hold-lock tests/hold-lock.swift
 
