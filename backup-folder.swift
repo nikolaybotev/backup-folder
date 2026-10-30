@@ -35,11 +35,54 @@ guard (try? fm.contentsOfDirectory(atPath: src)) != nil else {
     log("ERROR: cannot read \(src) (Full Disk Access?)"); exit(1)
 }
 
-let tf = DateFormatter(); tf.dateFormat = "yyyy-MM-dd_HHmm"
-let ts = tf.string(from: Date())
-let tmp = dest + "/.inprogress-" + ts
-let final = dest + "/" + ts
-try? fm.removeItem(atPath: tmp)
+let lockPath = dest + "/.backup-folder.lock"
+let lockFD = open(lockPath, O_CREAT | O_RDWR, 0o644)
+if lockFD < 0 {
+    log("ERROR: cannot open lock \(lockPath) (errno \(errno))"); exit(1)
+}
+defer { close(lockFD) }
+if flock(lockFD, LOCK_EX | LOCK_NB) != 0 {
+    if errno == EWOULDBLOCK {
+        log("skipped; dest busy")
+        exit(0)
+    }
+    log("ERROR: flock \(lockPath) (errno \(errno))"); exit(1)
+}
+
+if let children = try? fm.contentsOfDirectory(atPath: dest) {
+    for name in children where name.hasPrefix(".inprogress-") {
+        try? fm.removeItem(atPath: dest + "/" + name)
+    }
+}
+
+let nameFormatter = DateFormatter()
+nameFormatter.dateFormat = "yyyy-MM-dd_HHmmss"
+nameFormatter.locale = Locale(identifier: "en_US_POSIX")
+nameFormatter.timeZone = TimeZone.current
+let stamp = nameFormatter.string(from: Date())
+let pid = getpid()
+
+func snapshotPathTaken(_ name: String) -> Bool {
+    fm.fileExists(atPath: dest + "/" + name) || fm.fileExists(atPath: dest + "/.inprogress-" + name)
+}
+
+var snapName = "\(stamp)-\(pid)"
+if snapshotPathTaken(snapName) {
+    var n = 2
+    repeat {
+        snapName = "\(stamp)-\(pid)-\(n)"
+        n += 1
+    } while snapshotPathTaken(snapName)
+}
+
+let tmp = dest + "/.inprogress-" + snapName
+let final = dest + "/" + snapName
+do {
+    try fm.createDirectory(atPath: tmp, withIntermediateDirectories: false)
+} catch {
+    log("ERROR: mkdir \(tmp): \(error)"); exit(1)
+}
+
 // Clone file by file (whole-directory clonefile is refused inside iCloud-managed folders).
 // Each file is an APFS copy-on-write clone; falls back to a normal copy if cloning fails.
 var failures = 0
@@ -64,21 +107,42 @@ func cloneTree(_ s: String, _ d: String) {
 }
 cloneTree(src, tmp)
 if failures > 0 {
-    log("ERROR: \(failures) item(s) failed in \(ts); not publishing")
+    log("ERROR: \(failures) item(s) failed in \(snapName); not publishing")
     do { try fm.removeItem(atPath: tmp) } catch { log("ERROR: remove \(tmp): \(error)") }
     exit(1)
 }
 do { try fm.moveItem(atPath: tmp, toPath: final) } catch { log("ERROR: rename failed: \(error)"); exit(1) }
 var count = 0
 if let e = fm.enumerator(atPath: final) { while let p = e.nextObject() as? String { var d: ObjCBool = false; if fm.fileExists(atPath: final + "/" + p, isDirectory: &d), !d.boolValue { count += 1 } } }
-log("OK snapshot \(ts) (\(count) files, \(fallbacks) full copies)")
+log("OK snapshot \(snapName) (\(count) files, \(fallbacks) full copies)")
 
 // Prune
 let now = Date()
-let names = ((try? fm.contentsOfDirectory(atPath: dest)) ?? [])
-    .filter { SnapshotRetention.isOldFormatCandidate($0) }
-    .sorted()
-let toPrune = SnapshotRetention.namesToPrune(sortedCandidateNames: names, now: now) { tf.date(from: $0) }
+let oldParseFormatter = DateFormatter()
+oldParseFormatter.dateFormat = "yyyy-MM-dd_HHmm"
+oldParseFormatter.timeZone = TimeZone.current
+oldParseFormatter.locale = Locale(identifier: "en_US_POSIX")
+oldParseFormatter.isLenient = false
+let newParseFormatter = DateFormatter()
+newParseFormatter.dateFormat = "yyyy-MM-dd_HHmmss"
+newParseFormatter.timeZone = TimeZone.current
+newParseFormatter.locale = Locale(identifier: "en_US_POSIX")
+newParseFormatter.isLenient = false
+
+func parseSnapshotInstant(_ name: String) -> Date? {
+    if SnapshotRetention.isOldFormatCandidate(name) {
+        return oldParseFormatter.date(from: name)
+    }
+    if SnapshotRetention.isNewFormatCandidate(name) {
+        let prefix = String(name.prefix(SnapshotRetention.newFormatInstantPrefixLength))
+        return newParseFormatter.date(from: prefix)
+    }
+    return nil
+}
+
+let dirNames = (try? fm.contentsOfDirectory(atPath: dest)) ?? []
+let names = SnapshotRetention.sortedCandidateNames(dirNames, parseInstant: parseSnapshotInstant)
+let toPrune = SnapshotRetention.namesToPrune(sortedCandidateNames: names, now: now, parseInstant: parseSnapshotInstant)
 for n in toPrune {
     do { try fm.removeItem(atPath: dest + "/" + n); log("pruned \(n)") } catch { log("ERROR: prune \(n): \(error)") }
 }
