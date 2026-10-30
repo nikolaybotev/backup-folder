@@ -10,18 +10,16 @@ fi
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
-if [[ ! -x "$ROOT/drop-box-watcher" ]]; then
-  if [[ -x "$ROOT/drop-box-watcher/drop-box-watcher" ]]; then
-    BIN="$ROOT/drop-box-watcher/drop-box-watcher"
-  else
-    echo "Missing drop-box-watcher binary; run bash scripts/build.sh" >&2
-    exit 1
-  fi
-else
+if [[ -f "$ROOT/drop-box-watcher" && -x "$ROOT/drop-box-watcher" ]]; then
   BIN="$ROOT/drop-box-watcher"
+elif [[ -x "$ROOT/drop-box-watcher/drop-box-watcher" ]]; then
+  BIN="$ROOT/drop-box-watcher/drop-box-watcher"
+else
+  echo "Missing drop-box-watcher binary; run bash scripts/build.sh" >&2
+  exit 1
 fi
 
-TMPROOT="$(mktemp -d "${TMPDIR:-/tmp}/macos-watcher-XXXXXX")
+TMPROOT="$(mktemp -d "${TMPDIR:-/tmp}/macos-watcher-XXXXXX")"
 REAL_WATCH="$TMPROOT/watch-real"
 LINK_WATCH="/tmp/macos-watcher-watch-$$"
 LOG="$TMPROOT/watcher.log"
@@ -31,6 +29,10 @@ WATCHER_STDOUT="$TMPROOT/watcher.stdout"
 CONFIG="$TMPROOT/config.toml"
 LOOSE="$TMPROOT/loose.toml"
 HTTP_PY="$TMPROOT/http_server.py"
+CONFIG_LOG_PY="$TMPROOT/config_log_path.py"
+LOG_CONTAINS_PY="$TMPROOT/log_file_contains.py"
+PRINT_LOG_HEAD_PY="$TMPROOT/print_log_head.py"
+POLL_FOR_FILES_PY="$TMPROOT/poll_for_files.py"
 HTTP_PID=""
 WATCHER_PID=""
 
@@ -111,6 +113,57 @@ class Handler(BaseHTTPRequestHandler):
 HTTPServer(("127.0.0.1", port), Handler).serve_forever()
 PY
 
+cat >"$CONFIG_LOG_PY" <<'PY'
+import re, sys
+text = open(sys.argv[1]).read()
+m = re.search(r'^\s*path\s*=\s*"((?:\\.|[^"\\])*)"', text, re.M)
+if not m:
+    sys.exit(1)
+s = m.group(1).replace("\\\\", "\\").replace('\\"', '"')
+print(s, end="")
+PY
+
+cat >"$LOG_CONTAINS_PY" <<'PY'
+import os, sys
+path, needle = sys.argv[1], sys.argv[2]
+if not os.path.isfile(path) or os.path.getsize(path) == 0:
+    sys.exit(1)
+with open(path, encoding="utf-8", errors="replace") as f:
+    if needle not in f.read():
+        sys.exit(1)
+PY
+
+cat >"$PRINT_LOG_HEAD_PY" <<'PY'
+import sys
+path = sys.argv[1]
+with open(path, encoding="utf-8", errors="replace") as f:
+    for i, line in enumerate(f):
+        if i >= 5:
+            break
+        print(line.rstrip("\n"))
+PY
+
+cat >"$POLL_FOR_FILES_PY" <<'PY'
+import json, sys
+path, want_s, key, skip_s = sys.argv[1:5]
+want = json.loads(want_s)
+skip = int(skip_s)
+try:
+    lines = open(path).read().splitlines()
+except FileNotFoundError:
+    sys.exit(1)
+for line in lines[skip:]:
+    if not line.strip():
+        continue
+    rec = json.loads(line)
+    if rec.get("authorization") != f"Bearer {key}":
+        continue
+    body = json.loads(rec["body"])
+    if body.get("files") == want:
+        sys.exit(0)
+sys.exit(1)
+PY
+
 python3 -u "$HTTP_PY" "$PORT" "$POSTS" &
 HTTP_PID=$!
 
@@ -127,42 +180,18 @@ EOF
 chmod 0600 "$CONFIG"
 
 config_log_path() {
-  python3 - "$CONFIG" <<'PY'
-import re, sys
-text = open(sys.argv[1]).read()
-m = re.search(r'^\s*path\s*=\s*"((?:\\.|[^"\\])*)"', text, re.M)
-if not m:
-    sys.exit(1)
-s = m.group(1).replace("\\\\", "\\").replace('\\"', '"')
-print(s, end="")
-PY
+  python3 "$CONFIG_LOG_PY" "$CONFIG"
 }
 
 log_file_contains() {
   local log_path="$1"
   local needle="$2"
-  python3 - "$log_path" "$needle" <<'PY'
-import os, sys
-path, needle = sys.argv[1], sys.argv[2]
-if not os.path.isfile(path) or os.path.getsize(path) == 0:
-    sys.exit(1)
-with open(path, encoding="utf-8", errors="replace") as f:
-    if needle not in f.read():
-        sys.exit(1)
-PY
+  python3 "$LOG_CONTAINS_PY" "$log_path" "$needle"
 }
 
 print_log_head() {
   local log_path="$1"
-  python3 - "$log_path" <<'PY'
-import sys
-path = sys.argv[1]
-with open(path, encoding="utf-8", errors="replace") as f:
-    for i, line in enumerate(f):
-        if i >= 5:
-            break
-        print(line.rstrip("\n"))
-PY
+  python3 "$PRINT_LOG_HEAD_PY" "$log_path"
 }
 
 wait_for_log_line() {
@@ -233,27 +262,7 @@ poll_for_files() {
   local skip_lines="${2:-0}"
   local deadline=$((SECONDS + 10))
   while (( SECONDS < deadline )); do
-    if python3 - "$POSTS" "$want_json" "$TEST_KEY" "$skip_lines" <<'PY'
-import json, sys
-path, want_s, key, skip_s = sys.argv[1:5]
-want = json.loads(want_s)
-skip = int(skip_s)
-try:
-    lines = open(path).read().splitlines()
-except FileNotFoundError:
-    sys.exit(1)
-for line in lines[skip:]:
-    if not line.strip():
-        continue
-    rec = json.loads(line)
-    if rec.get("authorization") != f"Bearer {key}":
-        continue
-    body = json.loads(rec["body"])
-    if body.get("files") == want:
-        sys.exit(0)
-sys.exit(1)
-PY
-    then
+    if python3 "$POLL_FOR_FILES_PY" "$POSTS" "$want_json" "$TEST_KEY" "$skip_lines"; then
       return 0
     fi
     sleep 0.2
