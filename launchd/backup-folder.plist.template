@@ -3,15 +3,18 @@
 <plist version="1.0">
 <dict>
 	<key>Label</key>
-	<string>local.backup-folder.FOLDER</string>
+	<string>com.nikolay.backup.NAME</string>
 	<key>ProgramArguments</key>
 	<array>
-		<string>/ABS/PATH/TO/backup-folder</string>
-		<string>/ABS/PATH/TO/SOURCE</string>
-		<string>/ABS/PATH/TO/BACKUP-DIR</string>
+		<string>/Users/USER/bin/backup-folder</string>
+		<string>/ABS/SOURCE</string>
+		<string>/ABS/BACKUP-DIR</string>
 	</array>
-	<key>StartInterval</key>
-	<integer>3600</integer>
+	<key>StartCalendarInterval</key>
+	<dict>
+		<key>Minute</key>
+		<integer>0</integer>
+	</dict>
 	<key>RunAtLoad</key>
 	<false/>
 </dict>
