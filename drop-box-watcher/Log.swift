@@ -1,23 +1,26 @@
 import Foundation
+#if canImport(Darwin)
+import Darwin
+#else
+import Glibc
+#endif
 
 /// Append-only operational log (FR4). Never writes secrets, Authorization, or request bodies.
 final class OperationalLog: @unchecked Sendable {
-    private let handle: FileHandle
+    private let path: String
     private let lock = NSLock()
     private var lastDeliveryErrorKey: String?
     private var lastDeliveryErrorLogTime: Date?
     private var skippedIdenticalDeliveryErrors = 0
 
     init?(path: String) {
-        let url = URL(fileURLWithPath: path)
+        self.path = path
         if !FileManager.default.fileExists(atPath: path) {
-            FileManager.default.createFile(atPath: path, contents: nil)
+            _ = FileManager.default.createFile(atPath: path, contents: nil)
         }
-        guard let handle = try? FileHandle(forWritingTo: url) else {
+        guard FileManager.default.isWritableFile(atPath: path) else {
             return nil
         }
-        self.handle = handle
-        try? handle.seekToEnd()
     }
 
     func writeLine(_ line: String, at time: Date = Date()) {
@@ -30,9 +33,7 @@ final class OperationalLog: @unchecked Sendable {
         let text = "\(stamp) \(line)\n"
         lock.lock()
         defer { lock.unlock() }
-        if let data = text.data(using: .utf8) {
-            try? handle.write(contentsOf: data)
-        }
+        appendUTF8(text)
     }
 
     /// Logs a webhook delivery failure with at-most-once per 60s for identical status+error pairs (FR4 / D12).
@@ -73,9 +74,24 @@ final class OperationalLog: @unchecked Sendable {
         if !forbidden.isEmpty { return }
         let stamp = Self.timestampFormatter.string(from: time)
         let text = "\(stamp) \(line)\n"
-        if let data = text.data(using: .utf8) {
-            try? handle.write(contentsOf: data)
+        appendUTF8(text)
+    }
+
+    private func appendUTF8(_ text: String) {
+        guard let data = text.data(using: .utf8) else { return }
+        let fd = open(path, O_WRONLY | O_APPEND | O_CREAT, 0o600)
+        guard fd >= 0 else { return }
+        defer { close(fd) }
+        data.withUnsafeBytes { raw in
+            guard let base = raw.baseAddress else { return }
+            var written = 0
+            while written < raw.count {
+                let chunk = write(fd, base.advanced(by: written), raw.count - written)
+                if chunk <= 0 { break }
+                written += chunk
+            }
         }
+        fsync(fd)
     }
 
     static func redactionViolations(in line: String) -> [String] {
