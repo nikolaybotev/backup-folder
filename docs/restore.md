@@ -10,6 +10,6 @@ The maintainer runs these steps. CI does not. Give a heads-up before re-installi
 - Manual: iCloud repopulates Desktop and Documents. **Keep Downloaded** still applies to those two folders.
 - Manual: Re-fill `/opt/homebrew/etc/wireguard/wg0.conf` and the watcher [`config.toml`](setup.md) from 1Password. Keep modes `600` and `0600` respectively.
 - Script: When LaunchDaemon or LaunchAgent plists are missing, repeat the WireGuard daemon install and the LaunchAgent install steps from [`setup.md`](setup.md) (WireGuard plist, backup-folder agents, and the drop-box-watcher agent once its template exists).
-- Script: Re-run [`scripts/install-tools.sh`](../scripts/install-tools.sh) for any pinned tool whose `~/bin` binary is missing or should move to the pin in [`pins.txt`](../pins.txt).
+- Script: Re-run [`scripts/install-tools.sh`](../scripts/install-tools.sh) for any pinned tool whose `~/bin` binary is missing or should move to the pin in `~/.config/backup-folder/pins.txt` (see [`pins.txt.example`](../pins.txt.example)).
 - Manual: Accept Desktop and Documents privacy prompts for any binary that was replaced.
 - Manual: If the hardware changed: update the machine id in the deployment Mac's profile, the `file-access-policy` skill, and shared memory. Re-check the Drop Box dispatcher routine and the daily backup health check routine. This is bot-side work, not a command on the Mac, and this repo does not perform it. Other apps or tools beyond this hub stay open until the maintainer names them (Q5).

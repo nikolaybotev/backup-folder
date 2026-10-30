@@ -88,6 +88,8 @@ setup_anchors=(
   'com.nikolay.backup.NAME'
   'Drop Box'
   'config.toml'
+  '.config/backup-folder/pins.txt'
+  'pins.txt.example'
 )
 
 restore_anchors=(
@@ -97,6 +99,8 @@ restore_anchors=(
   'config.toml'
   'install-tools.sh'
   'file-access-policy'
+  '.config/backup-folder/pins.txt'
+  'pins.txt.example'
 )
 
 for a in "${setup_anchors[@]}"; do

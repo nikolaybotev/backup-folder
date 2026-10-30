@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 GH_REPO="${GH_REPO:-nikolaybotev/backup-folder}"
-PINS_FILE="${PINS_FILE:-$ROOT/pins.txt}"
+if [[ -z "${PINS_FILE:-}" ]]; then
+  PINS_FILE="${HOME}/.config/backup-folder/pins.txt"
+fi
 
 # Refusal check: uid 0 or any path component of install_dir named Backups.
 # Sourced by tests; pass uid as the first argument.

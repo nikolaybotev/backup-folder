@@ -43,6 +43,44 @@ if install_refuse 501 "/Users/test/Backups/mirror"; then
 fi
 ok "refuses Backups path component"
 
+# AC3: missing default pin file (PINS_FILE unset)
+MISS_HOME="$(mktemp -d "${TMPDIR:-/tmp}/install-test-miss-home.XXXXXX")"
+cleanup_miss() {
+  rm -rf "$MISS_HOME"
+}
+trap cleanup_miss EXIT
+(
+  export HOME="$MISS_HOME"
+  unset PINS_FILE
+  if bash "$INSTALL_SCRIPT"; then
+    exit 1
+  fi
+  [[ ! -e "$MISS_HOME/bin" ]] || exit 2
+  [[ ! -e "$MISS_HOME/.config/backup-folder" ]] || exit 3
+) || fail "missing default pin file case failed"
+ok "missing default pin file exits non-zero without creating bin or config dir"
+trap - EXIT
+cleanup_miss
+
+# AC3: default pin path with pins.txt.example copied (PINS_FILE unset)
+SUCCESS_HOME="$(mktemp -d "${TMPDIR:-/tmp}/install-test-success-home.XXXXXX")"
+cleanup_success() {
+  rm -rf "$SUCCESS_HOME"
+}
+trap cleanup_success EXIT
+(
+  export HOME="$SUCCESS_HOME"
+  unset PINS_FILE
+  mkdir -p "$SUCCESS_HOME/.config/backup-folder"
+  cp "$ROOT/pins.txt.example" "$SUCCESS_HOME/.config/backup-folder/pins.txt"
+  bash "$INSTALL_SCRIPT" || exit 1
+  [[ ! -e "$SUCCESS_HOME/bin/backup-folder" ]] || exit 2
+  [[ ! -e "$SUCCESS_HOME/bin/drop-box-watcher" ]] || exit 3
+) || fail "default pin path with example file failed"
+ok "default pin path with example unpinned lines exits 0 without installing"
+trap - EXIT
+cleanup_success
+
 TMP_HOME="$(mktemp -d "${TMPDIR:-/tmp}/install-test-home.XXXXXX")"
 cleanup() {
   rm -rf "$TMP_HOME"

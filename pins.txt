@@ -1,4 +1,0 @@
-# Pin each tool to a v* release tag after the maintainer publishes that release.
-# These bootstrap phases do not set a real pin.
-backup-folder unpinned
-drop-box-watcher unpinned
