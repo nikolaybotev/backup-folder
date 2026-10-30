@@ -15,12 +15,18 @@ let package = Package(
         .executableTarget(
             name: "backup-folder",
             dependencies: ["BuildStamp"],
-            path: "Sources/backup-folder"
+            path: "Sources/backup-folder",
+            swiftSettings: [
+                .swiftLanguageMode(.v5),
+            ]
         ),
         .executableTarget(
             name: "drop-box-watcher",
             dependencies: ["BuildStamp"],
-            path: "drop-box-watcher"
+            path: "drop-box-watcher",
+            swiftSettings: [
+                .swiftLanguageMode(.v5),
+            ]
         ),
     ]
 )

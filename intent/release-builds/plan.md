@@ -47,6 +47,8 @@ Files: `Package.swift`, `Sources/backup-folder/main.swift`, `Sources/backup-fold
 
 DoD: `bash tests/build-entry-test.sh` and `bash tests/linux-unit.sh` exit 0 on Linux, and the retention and path binaries pass from the new paths. The phase is done when the pull request's `macos` and `linux` checks are green.
 
+**Deviation (phase 0 implementation):** Both executable targets set `swiftLanguageMode(.v5)` in `Package.swift`. SPM release builds otherwise apply Swift 6 strict concurrency to top-level code in `main.swift` and fail on macOS CI; the prior `swiftc -O` multi-file build did not. The spec does not name a language mode; this preserves existing runtime behavior.
+
 ## Phase 1 — Tag and publish job
 
 Files: `scripts/release-version.sh`, `tests/release-version-test.sh`, `tests/release-workflow.sh`, `.github/workflows/release.yml`, `.github/workflows/test.yml`, `AGENTS.md`. Do not add a `VERSION` file.
