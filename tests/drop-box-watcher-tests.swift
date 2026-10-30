@@ -25,6 +25,8 @@ struct DropBoxWatcherTests {
         testReadinessTable()
         testLogRedaction()
         await testWebhookNotifier()
+        testExampleConfigFile()
+        testInstallSurfaceFiles()
         print("drop-box-watcher-tests: OK")
     }
 
@@ -234,6 +236,44 @@ struct DropBoxWatcherTests {
         log.writeLine(startupLine)
         let after = (try? String(contentsOfFile: path, encoding: .utf8)) ?? ""
         assert(after.contains("started watch_folder="), "startup line must be written")
+    }
+
+    static func testExampleConfigFile() {
+        let path = FileManager.default.currentDirectoryPath + "/drop-box-watcher.example.toml"
+        guard let text = try? String(contentsOfFile: path, encoding: .utf8) else {
+            fail("missing drop-box-watcher.example.toml")
+        }
+        assert(!text.contains(testWebhookKey), "example must not embed test key")
+        switch parseConfigTOML(text) {
+        case .success(let cfg):
+            assert(cfg.watchFolder.hasPrefix("/ABS/PATH/TO/HOME/"), "example watch_folder placeholder")
+            assert(cfg.webhookURL == "https://example.invalid/routine", "example webhook url")
+            assert(cfg.webhookKey == "REPLACE-WITH-ROUTINE-KEY", "example key placeholder")
+            assert(cfg.logPath.hasPrefix("/ABS/PATH/TO/HOME/"), "example log path placeholder")
+            let wantIgnore = [".DS_Store", ".*", "*.icloud", "*.download", "*.crdownload", "*.part"]
+            assert(cfg.ignorePatterns == wantIgnore, "example ignore list")
+        case .failure(let err):
+            fail("example config parse: \(err)")
+        }
+    }
+
+    static func testInstallSurfaceFiles() {
+        let root = FileManager.default.currentDirectoryPath
+        let releasePath = root + "/.github/workflows/release.yml"
+        guard let release = try? String(contentsOfFile: releasePath, encoding: .utf8) else {
+            fail("missing .github/workflows/release.yml")
+        }
+        assert(release.contains("drop-box-watcher"), "release.yml must name drop-box-watcher")
+
+        let plistPath = root + "/launchd/drop-box-watcher.plist.template"
+        guard let plist = try? String(contentsOfFile: plistPath, encoding: .utf8) else {
+            fail("missing launchd/drop-box-watcher.plist.template")
+        }
+        assert(plist.contains("com.nikolay.drop-box-watcher"), "plist label")
+        assert(plist.contains("<key>RunAtLoad</key>"), "RunAtLoad")
+        assert(plist.contains("<key>KeepAlive</key>"), "KeepAlive")
+        assert(plist.contains("<key>ThrottleInterval</key>"), "ThrottleInterval")
+        assert(!plist.contains("StartInterval"), "plist must not contain StartInterval")
     }
 
     static func testWebhookNotifier() async {

@@ -19,7 +19,7 @@ Small macOS CLI that snapshots a folder with APFS copy-on-write clones (`backup-
 - Cloud Agent start: `bash .cursor/start.sh` (no-op for this repo).
 - CI: `.github/workflows/test.yml` (workflow `test`, jobs `macos` and `linux`) runs on every pull request and on pushes to `main`. Required pull request checks are `macos` and `linux`. The `macos` job builds with `bash tests/build-backup-folder.sh`, runs `tests/macos-smoke.sh`, `tests/macos-watcher.sh`, and `tests/linux-unit.sh`, plus script and template checks on `macos-latest`. The `linux` job on `ubuntu-latest` installs Swift via `mise`, runs `tests/linux-unit.sh`, compiles `Retention.swift` with `tests/retention-tests.swift`, compiles `PathCheck.swift` with `tests/path-tests.swift`, and compiles `WalkPolicy.swift` with `tests/walk-tests.swift`; it does not compile `backup-folder.swift`.
 - CodeQL: `.github/workflows/codeql.yml` runs job `CodeQL (Swift)` on pushes to `main` and on a nightly schedule (06:00 UTC), with `timeout-minutes: 30`. It does not run on pull requests.
-- Release CD: `.github/workflows/release.yml` runs on tags matching `v*` on `macos-latest`, attests each built binary with GitHub artifact attestation, verifies with `gh attestation verify`, then uploads the binaries to a GitHub release. Merging to `main` does not publish a release; only a `v*` tag push does. Do not claim a release ran unless that tag push happened. Nikolay creates tags when a build is ready for Roger.
+- Release CD: `.github/workflows/release.yml` runs on tags matching `v*` on `macos-latest`, attests each built binary with GitHub artifact attestation, verifies with `gh attestation verify`, then uploads `backup-folder` and `drop-box-watcher` to a GitHub release. Merging to `main` does not publish a release; only a `v*` tag push does. Do not claim a release ran unless that tag push happened. Nikolay creates tags when a build is ready for Roger.
 - Branch protection: managed outside this repo by Roger with `gh`; agents must not create or change GitHub rulesets.
 
 ## Conventions
@@ -27,10 +27,12 @@ Small macOS CLI that snapshots a folder with APFS copy-on-write clones (`backup-
 - Docs follow the solo AI-native SDLC chain when present: `intent/<change>/intent.md` → `spec.md` → `plan.md`. This repo may not have that chain until onboarding intents land.
 - Do not commit real backup paths, hostnames, personal folder names, WireGuard keys, tunnel addresses, endpoints, ports, or 1Password item URIs in tests, fixtures, or templates (use the placeholder tokens).
 - Do not install the binary into `~/Backups` or `~/Backups/bin/backup-folder` from CI or agent work unless an intent explicitly says so.
+- Do not copy `drop-box-watcher` into `~/bin`, write the real watcher config, or load `com.nikolay.drop-box-watcher` from CI or agent work. Nikolay follows [`README.md`](README.md) on Roger when a release pin exists in `pins.txt`.
 
 ## Architecture
 
 - `backup-folder.swift` is the CLI entry point; `Retention.swift` holds Darwin-free prune rules (Foundation only); `WalkPolicy.swift` holds directory cycle detection used during the clone walk.
+- `drop-box-watcher/` holds the watcher binary sources; `drop-box-watcher.example.toml` and `launchd/drop-box-watcher.plist.template` are install placeholders only. Real config and the routine key stay on the Mac at `~/.config/drop-box-watcher/config.toml` (mode `0600`).
 - `launchd/backup-folder.plist.template` is a per-folder LaunchAgent template (label `com.nikolay.backup.NAME`, hourly at calendar minute 0, binary `/Users/USER/bin/backup-folder`); loading it is manual on a Mac.
 - `launchd/com.wireguard.wg0.plist.template` and `launchd/wg0.conf.template` are WireGuard placeholders only. Never commit a WireGuard key, endpoint, tunnel address, or 1Password item URI in git; Nikolay fills them from 1Password at install time.
 - Agents do not load LaunchAgents, run `launchctl`, or write under `~/Backups`.

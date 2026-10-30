@@ -22,14 +22,20 @@ jobs:
       - name: Build backup-folder
         run: bash tests/build-backup-folder.sh
       - name: Build drop-box-watcher
-        if: hashFiles('drop-box-watcher.swift') != ''
-        run: swiftc -O -o drop-box-watcher drop-box-watcher.swift
+        run: |
+          swiftc -O -o drop-box-watcher \
+            drop-box-watcher/Config.swift \
+            drop-box-watcher/Readiness.swift \
+            drop-box-watcher/Log.swift \
+            drop-box-watcher/WebhookHTTP.swift \
+            drop-box-watcher/WebhookNotifier.swift \
+            drop-box-watcher/Watcher.swift \
+            drop-box-watcher/main.swift
       - name: Attest backup-folder
         uses: actions/attest@v4
         with:
           subject-path: backup-folder
       - name: Attest drop-box-watcher
-        if: hashFiles('drop-box-watcher.swift') != ''
         uses: actions/attest@v4
         with:
           subject-path: drop-box-watcher
@@ -48,7 +54,6 @@ jobs:
           echo "gh attestation verify failed for backup-folder after retries" >&2
           exit 1
       - name: Verify drop-box-watcher attestation
-        if: hashFiles('drop-box-watcher.swift') != ''
         run: |
           set -euo pipefail
           for attempt in 1 2 3 4 5; do
@@ -62,20 +67,10 @@ jobs:
           done
           echo "gh attestation verify failed for drop-box-watcher after retries" >&2
           exit 1
-      - name: Prepare release assets
-        id: assets
-        run: |
-          assets=(backup-folder)
-          if [[ -f drop-box-watcher ]]; then
-            assets+=(drop-box-watcher)
-          fi
-          {
-            echo "files<<EOF"
-            printf '%s\n' "${assets[@]}"
-            echo "EOF"
-          } >> "$GITHUB_OUTPUT"
       - name: Publish GitHub release
         uses: softprops/action-gh-release@v2
         with:
-          files: ${{ steps.assets.outputs.files }}
+          files: |
+            backup-folder
+            drop-box-watcher
           generate_release_notes: true
