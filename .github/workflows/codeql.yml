@@ -20,7 +20,7 @@ jobs:
     name: CodeQL (Swift)
     # Traced Swift extraction is unavailable on macOS 27 / Xcode 27; pin macos-26.
     runs-on: macos-26
-    timeout-minutes: 10 # hard cap; traced -Onone compile, queue typically 2–5 s
+    timeout-minutes: 15 # hard cap; -O traced build ~12–14 min, queue typically 2–5 s
     permissions:
       contents: read
       security-events: write
@@ -29,25 +29,6 @@ jobs:
       - name: Check out
         uses: actions/checkout@v4
 
-      - name: Untraced compile timing
-        env:
-          SWIFTC_OPT: -Onone
-        run: |
-          set -euo pipefail
-          echo "untraced backup-folder start $(date -u +%H:%M:%S)"
-          bash tests/build-backup-folder.sh "$RUNNER_TEMP/untraced-backup-folder"
-          echo "untraced backup-folder end $(date -u +%H:%M:%S)"
-          echo "untraced drop-box-watcher start $(date -u +%H:%M:%S)"
-          swiftc -Onone -o "$RUNNER_TEMP/untraced-drop-box-watcher" \
-            drop-box-watcher/Config.swift \
-            drop-box-watcher/Readiness.swift \
-            drop-box-watcher/Log.swift \
-            drop-box-watcher/WebhookHTTP.swift \
-            drop-box-watcher/WebhookNotifier.swift \
-            drop-box-watcher/Watcher.swift \
-            drop-box-watcher/main.swift
-          echo "untraced drop-box-watcher end $(date -u +%H:%M:%S)"
-
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v4
         with:
@@ -55,16 +36,9 @@ jobs:
           build-mode: manual
 
       - name: Build for CodeQL
-        timeout-minutes: 7
-        env:
-          SWIFTC_OPT: -Onone
         run: |
-          set -euo pipefail
-          echo "traced backup-folder start $(date -u +%H:%M:%S)"
           bash tests/build-backup-folder.sh "$RUNNER_TEMP/backup-folder"
-          echo "traced backup-folder end $(date -u +%H:%M:%S)"
-          echo "traced drop-box-watcher start $(date -u +%H:%M:%S)"
-          swiftc -Onone -o "$RUNNER_TEMP/drop-box-watcher" \
+          swiftc -O -o "$RUNNER_TEMP/drop-box-watcher" \
             drop-box-watcher/Config.swift \
             drop-box-watcher/Readiness.swift \
             drop-box-watcher/Log.swift \
@@ -72,83 +46,6 @@ jobs:
             drop-box-watcher/WebhookNotifier.swift \
             drop-box-watcher/Watcher.swift \
             drop-box-watcher/main.swift
-          echo "traced drop-box-watcher end $(date -u +%H:%M:%S)"
-
-      - name: CodeQL extraction diagnostics
-        if: always()
-        run: |
-          set +e
-          echo "=== CodeQL extraction diagnostics ==="
-          echo "RUNNER_TEMP=${RUNNER_TEMP}"
-
-          echo ""
-          echo "CodeQL database / log directories:"
-          for d in \
-            "${RUNNER_TEMP}/codeql_databases" \
-            $(find "${RUNNER_TEMP}" -maxdepth 5 -type d \( -name 'log' -o -name 'logs' \) 2>/dev/null | grep -i codeql || true) \
-            $(find "${RUNNER_TEMP}" -maxdepth 4 -type d -name 'codeql_databases' 2>/dev/null || true); do
-            [ -d "$d" ] || continue
-            echo "  $d"
-            find "$d" -maxdepth 2 -type d 2>/dev/null | head -15
-          done
-
-          echo ""
-          echo "*.log under RUNNER_TEMP paths containing codeql (first 25 files, console shows <=80 lines each):"
-          log_list="$(mktemp)"
-          find "${RUNNER_TEMP}" -path '*codeql*' -name '*.log' 2>/dev/null | head -25 > "$log_list"
-          if [ ! -s "$log_list" ]; then
-            echo "  (none found)"
-          else
-            while IFS= read -r f; do
-              lines="$(wc -l < "$f" 2>/dev/null | tr -d ' ')"
-              echo "--- ${f} (${lines:-?} lines) ---"
-              head -80 "$f" 2>/dev/null
-            done < "$log_list"
-          fi
-
-          echo ""
-          echo ".trap files grouped by parent directory name (top 40):"
-          trap_tmp="$(mktemp)"
-          find "${RUNNER_TEMP}" -path '*codeql*' -name '*.trap' 2>/dev/null \
-            | sed -E 's#/([^/]+)/[^/]+\.trap$#/\1#' \
-            | sort | uniq -c | sort -rn | head -40 > "$trap_tmp"
-          if [ ! -s "$trap_tmp" ]; then
-            echo "  (none found)"
-          else
-            cat "$trap_tmp"
-          fi
-
-          echo ""
-          echo "SDK module callouts (Foundation, Darwin, Dispatch):"
-          for mod in Foundation Darwin Dispatch; do
-            traps="$(find "${RUNNER_TEMP}" -path '*codeql*' -name '*.trap' 2>/dev/null | grep -i "/${mod}/" | wc -l | tr -d ' ')"
-            logs="$(find "${RUNNER_TEMP}" -path '*codeql*' -name '*.log' 2>/dev/null | xargs grep -l "$mod" 2>/dev/null | wc -l | tr -d ' ')"
-            echo "  ${mod}: ${traps} .trap paths under */${mod}/, ${logs} .log files mentioning name"
-          done
-
-          staging="${RUNNER_TEMP}/codeql-diagnostic-artifact"
-          rm -rf "$staging"
-          mkdir -p "$staging/logs" "$staging/trap-index"
-          while IFS= read -r f; do
-            base="$(basename "$f")"
-            lines="$(wc -l < "$f" 2>/dev/null | tr -d ' ')"
-            if [ "${lines:-0}" -gt 200 ]; then
-              head -200 "$f" > "$staging/logs/${base}.head"
-            else
-              cp "$f" "$staging/logs/${base}" 2>/dev/null
-            fi
-          done < "$log_list"
-          cp "$trap_tmp" "$staging/trap-index/by-directory.txt" 2>/dev/null
-          find "${RUNNER_TEMP}" -path '*codeql*' -name '*.trap' 2>/dev/null | head -500 > "$staging/trap-index/trap-paths-sample.txt"
-          echo "CODEQL_DIAGNOSTIC_STAGING=${staging}" >> "${GITHUB_ENV}"
-
-      - name: Upload CodeQL diagnostic logs
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: codeql-extraction-diagnostics
-          path: ${{ runner.temp }}/codeql-diagnostic-artifact
-          if-no-files-found: ignore
 
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@v4
