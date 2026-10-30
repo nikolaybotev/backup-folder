@@ -11,6 +11,7 @@ Small macOS CLI that snapshots a folder with APFS copy-on-write clones (`backup-
 - Secret scan (Linux or macOS): `bash tests/no-secrets.sh` (healthy: line `no-secrets: all checks passed`). Also runs in the `macos` CI job.
 - Install Roger tools (Linux or macOS): `bash tests/install-roger-tools-test.sh` (healthy: line `install-roger-tools-test: all checks passed`). Also runs in the `macos` CI job. Nikolay runs `bash scripts/install-roger-tools.sh` on Roger when `pins.txt` names real `v*` tags; until then unpinned tools are skipped. The script installs only into `~/bin`, refuses root (uid 0), refuses any install path with a `Backups` path component, and does not use `launchctl`.
 - Ensure backup directories (Linux or macOS): `bash tests/ensure-backup-dirs-test.sh` (healthy: line `ensure-backup-dirs-test: all checks passed`). Also runs in the `macos` CI job. Nikolay passes absolute home-mirrored snapshot paths as arguments to `bash scripts/ensure-backup-dirs.sh`; CI and agents do not run it against a live home.
+- Setup and restore docs (Linux or macOS): `bash tests/setup-docs.sh` (healthy: line `setup-docs: all checks passed`). Also runs in the `macos` CI job. Validates `docs/setup.md` and `docs/restore.md` bullet marks and catalog anchors.
 - `pins.txt` lists each tool and its release tag (`unpinned` until Nikolay sets a real pin after a published release). Agents do not set a real pin or run the install script against Roger's home.
 - Cloud Agent install: `bash .cursor/install.sh` (healthy: `swiftc --version` and skills under `~/.cursor/skills-cursor`).
 - Cloud Agent start: `bash .cursor/start.sh` (no-op for this repo).
@@ -40,6 +41,7 @@ Small macOS CLI that snapshots a folder with APFS copy-on-write clones (`backup-
 - Do not claim a GitHub release was published unless a `v*` tag push actually ran `release.yml`.
 - Do not create or change branch protection rulesets in GitHub; Roger maintains them with `gh`.
 - Cloud Agents on Linux can parse and edit the source but cannot execute `clonefile`, APFS clones, or `launchctl`.
+- Agents do not run [`docs/setup.md`](docs/setup.md) or [`docs/restore.md`](docs/restore.md) on a live Mac, do not run `scripts/install-roger-tools.sh` against Roger's home, and do not run `launchctl` on Roger.
 
 ## Cursor Cloud specific instructions
 

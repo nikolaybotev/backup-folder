@@ -2,6 +2,8 @@
 
 Small macOS command-line tool that snapshots a folder with APFS copy-on-write clones.
 
+This repo is also the setup hub for the Mac named Roger. First-time setup and restore after data loss are documented in [`docs/setup.md`](docs/setup.md) and [`docs/restore.md`](docs/restore.md). Nikolay runs those checklists; CI does not install them on Roger.
+
 ```
 backup-folder <src> <dest>
 ```
