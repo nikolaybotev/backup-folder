@@ -40,7 +40,13 @@ export MACOSX_DEPLOYMENT_TARGET=12.0
 swift build -c release
 
 cp .build/release/backup-folder "$ROOT/backup-folder"
-cp .build/release/drop-box-watcher "$ROOT/drop-box-watcher"
+
+watcher_dest="$ROOT/drop-box-watcher"
+if [[ -d "$watcher_dest" ]]; then
+  # Source tree lives at drop-box-watcher/; on macOS the root name is the directory.
+  watcher_dest="$ROOT/drop-box-watcher/drop-box-watcher"
+fi
+cp .build/release/drop-box-watcher "$watcher_dest"
 
 sign_one() {
   local bin="$1"
@@ -52,4 +58,4 @@ sign_one() {
 }
 
 sign_one "$ROOT/backup-folder"
-sign_one "$ROOT/drop-box-watcher"
+sign_one "$watcher_dest"

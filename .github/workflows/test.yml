@@ -49,7 +49,12 @@ jobs:
             exit 1
           fi
           want_w="drop-box-watcher v9.9.9 (${short_sha}, built ${ts})"
-          got_w="$(./drop-box-watcher --version)"
+          if [[ -x ./drop-box-watcher/drop-box-watcher ]]; then
+            watcher_bin=./drop-box-watcher/drop-box-watcher
+          else
+            watcher_bin=./drop-box-watcher
+          fi
+          got_w="$("$watcher_bin" --version)"
           if [[ "$got_w" != "$want_w" ]]; then
             echo "drop-box-watcher --version mismatch" >&2
             echo "  want: $want_w" >&2
@@ -57,7 +62,7 @@ jobs:
             exit 1
           fi
           want_w_v="drop-box-watcher v9.9.9 (${head_sha}, built ${ts})"
-          got_w_v="$(./drop-box-watcher --version --verbose)"
+          got_w_v="$("$watcher_bin" --version --verbose)"
           if [[ "$got_w_v" != "$want_w_v" ]]; then
             echo "drop-box-watcher --version --verbose mismatch" >&2
             echo "  want: $want_w_v" >&2

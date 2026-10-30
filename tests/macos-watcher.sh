@@ -10,10 +10,15 @@ fi
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
-BIN="$ROOT/drop-box-watcher"
-if [[ ! -x "$BIN" ]]; then
-  echo "Missing drop-box-watcher binary; run bash scripts/build.sh" >&2
-  exit 1
+if [[ ! -x "$ROOT/drop-box-watcher" ]]; then
+  if [[ -x "$ROOT/drop-box-watcher/drop-box-watcher" ]]; then
+    BIN="$ROOT/drop-box-watcher/drop-box-watcher"
+  else
+    echo "Missing drop-box-watcher binary; run bash scripts/build.sh" >&2
+    exit 1
+  fi
+else
+  BIN="$ROOT/drop-box-watcher"
 fi
 
 TMPROOT="$(mktemp -d "${TMPDIR:-/tmp}/macos-watcher-XXXXXX")
