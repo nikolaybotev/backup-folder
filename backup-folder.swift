@@ -101,12 +101,16 @@ func cloneTree(_ s: String, _ d: String, _ visited: inout Set<DirectoryId>) {
             continue
         }
         let fileType = attrs[.type] as? FileAttributeType
-        switch fileType {
-        case .typeSymbolicLink:
+        let isSymlink = fileType == .typeSymbolicLink
+            || (try? fm.destinationOfSymbolicLink(atPath: sp)) != nil
+        if isSymlink {
             if clonefile(sp, dp, UInt32(CLONE_NOFOLLOW)) != 0 {
                 log("ERROR: clonefile \(sp) (errno \(errno))")
                 failures += 1
             }
+            continue
+        }
+        switch fileType {
         case .typeDirectory:
             let sysNum = attrs[.systemNumber] as? NSNumber
             let sysFileNum = attrs[.systemFileNumber] as? NSNumber

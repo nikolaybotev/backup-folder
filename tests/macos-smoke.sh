@@ -30,7 +30,7 @@ cleanup() {
     kill "$FIFO_PID" 2>/dev/null || true
     wait "$FIFO_PID" 2>/dev/null || true
   fi
-  rm -rf "$SRC" "$DEST" "$FAIL_SRC" "$FAIL_DEST" "${CONTAIN_SRC:-}" "$LINK_SRC" "$LINK_DEST" "$FIFO_SRC" "$FIFO_DEST"
+  rm -rf "$SRC" "$DEST" "$FAIL_SRC" "$FAIL_DEST" "${CONTAIN_SRC:-}" "$LINK_SRC" "$LINK_DEST" "$FIFO_SRC" "$FIFO_DEST" "${LINK_HIDDEN:-}"
 }
 trap cleanup EXIT
 
@@ -225,9 +225,10 @@ if [[ "$contain_exit" -ne 2 ]]; then
   exit 1
 fi
 
-mkdir -p "$LINK_SRC/realdir"
-printf 'symlink-target\n' >"$LINK_SRC/realdir/inside.txt"
-ln -s "$LINK_SRC/realdir" "$LINK_SRC/linkdir"
+LINK_HIDDEN="$(mktemp -d)"
+mkdir -p "$LINK_HIDDEN/realdir"
+printf 'symlink-target\n' >"$LINK_HIDDEN/realdir/inside.txt"
+ln -s "$LINK_HIDDEN/realdir" "$LINK_SRC/linkdir"
 "$ROOT/backup-folder" "$LINK_SRC" "$LINK_DEST"
 link_snap_count="$(count_snapshot_dirs "$LINK_DEST")"
 if [[ "$link_snap_count" -ne 1 ]]; then
@@ -248,7 +249,8 @@ if [[ "$(readlink "$link_entry")" != "$LINK_SRC/realdir" ]]; then
   printf '  got:      %q\n' "$(readlink "$link_entry")" >&2
   exit 1
 fi
-if [[ -d "$LINK_DEST/$link_snap/linkdir/inside.txt" ]] || [[ -f "$LINK_DEST/$link_snap/linkdir/inside.txt" ]]; then
+if [[ -d "$link_entry" && ! -L "$link_entry" ]] \
+  || { [[ -f "$LINK_DEST/$link_snap/linkdir/inside.txt" || -d "$LINK_DEST/$link_snap/linkdir/inside.txt" ]] && [[ ! -L "$link_entry" ]]; }; then
   echo "Snapshot must not walk directory symlink target tree" >&2
   find "$LINK_DEST/$link_snap" >&2 || true
   exit 1
