@@ -75,14 +75,10 @@ log("OK snapshot \(ts) (\(count) files, \(fallbacks) full copies)")
 
 // Prune
 let now = Date()
-var keptDays = Set<String>()
-let names = ((try? fm.contentsOfDirectory(atPath: dest)) ?? []).filter { $0.range(of: #"^\d{4}-\d{2}-\d{2}_\d{4}$"#, options: .regularExpression) != nil }.sorted()
-for n in names {
-    guard let t = tf.date(from: n) else { continue }
-    let age = now.timeIntervalSince(t)
-    if age <= 48 * 3600 { continue }
-    let day = String(n.prefix(10))
-    if age > 60 * 86400 || keptDays.contains(day) {
-        do { try fm.removeItem(atPath: dest + "/" + n); log("pruned \(n)") } catch { log("ERROR: prune \(n): \(error)") }
-    } else { keptDays.insert(day) }
+let names = ((try? fm.contentsOfDirectory(atPath: dest)) ?? [])
+    .filter { SnapshotRetention.isOldFormatCandidate($0) }
+    .sorted()
+let toPrune = SnapshotRetention.namesToPrune(sortedCandidateNames: names, now: now) { tf.date(from: $0) }
+for n in toPrune {
+    do { try fm.removeItem(atPath: dest + "/" + n); log("pruned \(n)") } catch { log("ERROR: prune \(n): \(error)") }
 }

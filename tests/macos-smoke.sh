@@ -7,7 +7,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
-swiftc -O -o backup-folder backup-folder.swift
+swiftc -O -o backup-folder backup-folder.swift Retention.swift
 swiftc -O -o clonefile-probe tests/clonefile-probe.swift
 
 SRC="$(mktemp -d)"

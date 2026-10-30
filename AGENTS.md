@@ -4,7 +4,7 @@ Small macOS CLI that snapshots a folder with APFS copy-on-write clones (`backup-
 
 ## Commands
 
-- Build (macOS): `swiftc -O -o backup-folder backup-folder.swift` (healthy: `backup-folder` binary in the repo root).
+- Build (macOS): `swiftc -O -o backup-folder backup-folder.swift Retention.swift` (healthy: `backup-folder` binary in the repo root).
 - Parse-only (Linux cloud VM): `swiftc -parse backup-folder.swift` (healthy: exit 0). Full type-check and link need Darwin; Linux cannot build this binary while the tool imports `Darwin` and calls `clonefile`.
 - Darwin-free unit tests (Linux cloud VM and CI): `bash tests/linux-unit.sh` (healthy: line `linux-unit: OK`). Covers `drop-box-watcher` config, readiness, logging, and webhook notifier logic.
 - CI smoke (macOS): `bash tests/macos-smoke.sh` (healthy: line `macos-smoke: build OK, clonefile probe OK, snapshot OK, COW OK`).
@@ -14,7 +14,7 @@ Small macOS CLI that snapshots a folder with APFS copy-on-write clones (`backup-
 - `pins.txt` lists each tool and its release tag (`unpinned` until Nikolay sets a real pin after a published release). Agents do not set a real pin or run the install script against Roger's home.
 - Cloud Agent install: `bash .cursor/install.sh` (healthy: `swiftc --version` and skills under `~/.cursor/skills-cursor`).
 - Cloud Agent start: `bash .cursor/start.sh` (no-op for this repo).
-- CI: `.github/workflows/test.yml` (workflow `test`, jobs `macos` and `linux`) runs on every pull request and on pushes to `main`. The `macos` job builds with `swiftc` and runs `tests/macos-smoke.sh` on `macos-latest`. The `linux` job installs Swift via `mise` and runs `tests/linux-unit.sh` on `ubuntu-latest`. `backup-folder.swift` is not type-checked or linked on Linux.
+- CI: `.github/workflows/test.yml` (workflow `test`, jobs `macos` and `linux`) runs on every pull request and on pushes to `main`. The `macos` job builds with `swiftc` and runs `tests/macos-smoke.sh` on `macos-latest`. The `linux` job on `ubuntu-latest` installs Swift via `mise`, runs `tests/linux-unit.sh`, and compiles only `Retention.swift` with `tests/retention-tests.swift`; it does not compile `backup-folder.swift`.
 - CodeQL: `.github/workflows/codeql.yml` runs CodeQL (Swift) on pull requests and on pushes to `main` (plus a weekly schedule).
 - Release CD: `.github/workflows/release.yml` runs on tags matching `v*` on `macos-latest`, attests each built binary with GitHub artifact attestation, verifies with `gh attestation verify`, then uploads the binaries to a GitHub release. Merging to `main` does not publish a release; only a `v*` tag push does. Do not claim a release ran unless that tag push happened. Nikolay creates tags when a build is ready for Roger.
 - Branch protection: managed outside this repo by Roger with `gh`; agents must not create or change GitHub rulesets.
@@ -27,7 +27,7 @@ Small macOS CLI that snapshots a folder with APFS copy-on-write clones (`backup-
 
 ## Architecture
 
-- `backup-folder.swift` is the entire program (no Swift package manifest).
+- `backup-folder.swift` is the CLI entry point; `Retention.swift` holds Darwin-free prune rules (Foundation only).
 - `launchd/backup-folder.plist.template` is a per-folder LaunchAgent template (label `com.nikolay.backup.NAME`, hourly at calendar minute 0, binary `/Users/USER/bin/backup-folder`); loading it is manual on a Mac.
 - `launchd/com.wireguard.wg0.plist.template` and `launchd/wg0.conf.template` are WireGuard placeholders only. Never commit a WireGuard key, endpoint, tunnel address, or 1Password item URI in git; Nikolay fills them from 1Password at install time.
 - Agents do not load LaunchAgents, run `launchctl`, or write under `~/Backups`.

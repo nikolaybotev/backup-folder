@@ -38,7 +38,9 @@ DoD: local `swiftc -o retention-tests Retention.swift tests/retention-tests.swif
 
 ### Build notes (Phase 0)
 
-Added only after the phase lands.
+- **`linux` job already present.** PR #12 merged before this phase; step 3’s “add a `linux` job” was satisfied by the existing `ubuntu-latest` job running `tests/linux-unit.sh`. This phase adds a **Retention unit tests** step on that job and raises its timeout from 20 to 30 minutes.
+- **`AGENTS.md` CodeQL bullet.** Left unchanged (CodeQL already documented on `main`); only the macOS build line and the `linux` job description were updated per coordinator instruction.
+- **Names and lock unchanged.** Phase 0 keeps `yyyy-MM-dd_HHmm` names and does not add `.backup-folder.lock` (phase 1).
 
 ## Phase 1 — Unique names, lock, and reap
 
