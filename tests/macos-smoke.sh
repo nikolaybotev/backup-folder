@@ -15,13 +15,22 @@ SRC="$(mktemp -d)"
 DEST="$(mktemp -d)"
 FAIL_SRC="$(mktemp -d)"
 FAIL_DEST="$(mktemp -d)"
+LINK_SRC="$(mktemp -d)"
+LINK_DEST="$(mktemp -d)"
+FIFO_SRC="$(mktemp -d)"
+FIFO_DEST="$(mktemp -d)"
 cleanup() {
   chmod -R u+rwx "$FAIL_SRC" 2>/dev/null || true
+  rm -f "$FIFO_SRC/pipe.fifo" 2>/dev/null || true
   if [[ -n "${HOLD_PID:-}" ]]; then
     kill "$HOLD_PID" 2>/dev/null || true
     wait "$HOLD_PID" 2>/dev/null || true
   fi
-  rm -rf "$SRC" "$DEST" "$FAIL_SRC" "$FAIL_DEST" "${CONTAIN_SRC:-}"
+  if [[ -n "${FIFO_PID:-}" ]]; then
+    kill "$FIFO_PID" 2>/dev/null || true
+    wait "$FIFO_PID" 2>/dev/null || true
+  fi
+  rm -rf "$SRC" "$DEST" "$FAIL_SRC" "$FAIL_DEST" "${CONTAIN_SRC:-}" "$LINK_SRC" "$LINK_DEST" "$FIFO_SRC" "$FIFO_DEST" "${LINK_HIDDEN:-}"
 }
 trap cleanup EXIT
 
@@ -213,6 +222,80 @@ contain_exit=$?
 set -e
 if [[ "$contain_exit" -ne 2 ]]; then
   echo "Expected exit 2 for doubled-slash source with dest inside, got ${contain_exit}" >&2
+  exit 1
+fi
+
+LINK_HIDDEN="$(mktemp -d)"
+mkdir -p "$LINK_HIDDEN/realdir"
+printf 'symlink-target\n' >"$LINK_HIDDEN/realdir/inside.txt"
+ln -s "$LINK_HIDDEN/realdir" "$LINK_SRC/linkdir"
+"$ROOT/backup-folder" "$LINK_SRC" "$LINK_DEST"
+link_snap_count="$(count_snapshot_dirs "$LINK_DEST")"
+if [[ "$link_snap_count" -ne 1 ]]; then
+  echo "Symlink fixture expected one snapshot, found count=${link_snap_count}" >&2
+  ls -la "$LINK_DEST" >&2
+  exit 1
+fi
+link_snap="$(list_snapshot_dirs "$LINK_DEST" | head -n 1)"
+link_entry="$LINK_DEST/$link_snap/linkdir"
+if [[ ! -L "$link_entry" ]]; then
+  echo "Expected symlink entry at $link_entry" >&2
+  ls -la "$LINK_DEST/$link_snap" >&2
+  exit 1
+fi
+if [[ "$(readlink "$link_entry")" != "$LINK_HIDDEN/realdir" ]]; then
+  echo "Symlink target mismatch for $link_entry" >&2
+  printf '  expected: %q\n' "$LINK_HIDDEN/realdir" >&2
+  printf '  got:      %q\n' "$(readlink "$link_entry")" >&2
+  exit 1
+fi
+link_inside_leak=0
+while IFS= read -r _leak_path; do
+  [[ -z "$_leak_path" ]] && continue
+  link_inside_leak=1
+done < <(find "$LINK_DEST/$link_snap" -name inside.txt -type f -print 2>/dev/null || true)
+if [[ -d "$link_entry" && ! -L "$link_entry" ]] || [[ "$link_inside_leak" -eq 1 ]]; then
+  echo "Snapshot must not walk directory symlink target tree" >&2
+  find "$LINK_DEST/$link_snap" >&2 || true
+  exit 1
+fi
+
+mkfifo "$FIFO_SRC/pipe.fifo"
+printf 'fifo-fixture\n' >"$FIFO_SRC/ok.txt"
+FIFO_PID=""
+(
+  "$ROOT/backup-folder" "$FIFO_SRC" "$FIFO_DEST" >/dev/null 2>&1
+) &
+FIFO_PID=$!
+fifo_deadline=$((SECONDS + 10))
+while kill -0 "$FIFO_PID" 2>/dev/null; do
+  if (( SECONDS >= fifo_deadline )); then
+    kill "$FIFO_PID" 2>/dev/null || true
+    wait "$FIFO_PID" 2>/dev/null || true
+    FIFO_PID=""
+    echo "Fifo fixture exceeded 10 second limit" >&2
+    exit 1
+  fi
+  sleep 0.2
+done
+set +e
+wait "$FIFO_PID"
+fifo_exit=$?
+set -e
+FIFO_PID=""
+if [[ "$fifo_exit" -eq 0 ]]; then
+  echo "Expected non-zero exit for fifo fixture, got ${fifo_exit}" >&2
+  exit 1
+fi
+if ! grep -q 'skip special file' "$FIFO_DEST/backup.log" 2>/dev/null; then
+  echo "Fifo fixture backup.log missing skip special file:" >&2
+  cat "$FIFO_DEST/backup.log" >&2 || true
+  exit 1
+fi
+fifo_snap_count="$(count_snapshot_dirs "$FIFO_DEST")"
+if [[ "$fifo_snap_count" -ne 0 ]]; then
+  echo "Fifo fixture should leave no snapshot directory, found count=${fifo_snap_count}" >&2
+  ls -la "$FIFO_DEST" >&2
   exit 1
 fi
 
