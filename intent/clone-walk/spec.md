@@ -24,6 +24,7 @@ Lines 46–48 classify with `fileExists(_:isDirectory:)`. Apple’s documentatio
 - Do not preserve hard-link identity. Two names that share an inode become two clones. That is what a per-entry clone already does.
 - Do not copy directory modes, ACLs, or xattrs as a requirement.
 - Do not call `clonefile` on a directory.
+- Do not narrow [path-containment](../path-containment/spec.md) to a resolved-only compare. That phase refuses when either the lexically normalized dest or the symlink-resolved dest is inside the source, which keeps a dest that `backup-folder.swift` lines 14–15 refuse today. This phase changes entries inside the tree. It leaves that argument check as specified there.
 - Do not read or write `~/Backups` or `~/Backups/bin/backup-folder`. Do not push a `v*` tag.
 
 **Release phasing.** One phase. It depends on honest-snapshot already refusing to publish when `failures > 0`.

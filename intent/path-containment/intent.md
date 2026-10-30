@@ -25,6 +25,7 @@ The run refuses when the normalized backup path is the source or is inside the s
 ## Constraints and principles
 
 - The refusal message stays `backup dir must not be inside source`, and the exit stays 2.
+- A destination that lines 14–15 of `backup-folder.swift` refuse today stays refused, including when a symlink would resolve it outside the source. [clone-walk](../clone-walk/intent.md) is the following phase and does not replace this check.
 - `/tmp/foo` as source and `/tmp/foobar` as dest stay allowed.
 - Nothing in this change reads or writes `~/Backups` or `~/Backups/bin/backup-folder`.
 
