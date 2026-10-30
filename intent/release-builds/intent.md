@@ -117,3 +117,20 @@ Nikolay decided, in his own words: "Use git tags for the version, no VERSION fil
 - Keep everything else: identity "Nikolay Botev Code Signing", secrets MACOS_SIGNING_P12_BASE64 and MACOS_SIGNING_P12_PASSWORD, codesign --verify --strict (not spctl), temp keychain always deleted, missing secrets fail the release job, SIGN_IDENTITY or ad-hoc for local builds, macos and linux timeout-minutes 5, CodeQL off pull requests, no new required check. If that last one changes, say the exact job name.
 - Still spec and plan only. Push to the existing PR. Report the new SHA and the ruleset-vs-tags finding.
 ```
+
+## Build stamp (verbatim)
+
+```
+Addition from Nikolay for PR https://github.com/nikolaybotev/backup-folder/pull/21. Put it in the spec and the plan. Do not re-litigate it. Push to the existing branch.
+
+Release tags stay plain vMAJOR.MINOR.PATCH (no SHA in the tag). Both binaries must also stamp the full commit SHA and the UTC build timestamp alongside the version.
+
+scripts/build.sh generates them the same way in CI and locally:
+- git rev-parse HEAD
+- date -u +%Y-%m-%dT%H:%MZ
+- version from the env var, or git describe --tags --dirty
+
+`--version` prints for example `backup-folder v0.1.2 (abc1234, built 2026-10-30T18:52Z)`, with the short SHA shown and the full SHA available (for example `--version --verbose`, or the release notes).
+
+Keep every other decision: no VERSION file, no push to main, tag-only release, signing identity, timeouts, CodeQL off pull requests, no new required check. Still spec and plan only. Report the new SHA.
+```

@@ -3,7 +3,7 @@
 | | |
 |---|---|
 | Derived from | [intent.md](intent.md) (2026-10-30) |
-| Status | Draft 2 |
+| Status | Draft 3 |
 | Stage | 2 · Design |
 
 ## 1. Summary
@@ -69,8 +69,9 @@ FR2. The snapshot sources move to `Sources/backup-folder/`. `backup-folder.swift
 FR3. `scripts/build.sh` takes no arguments. It is the product build.
 
 - It refuses to run unless `uname` reports Darwin, with a message that the script requires macOS, and exits non-zero.
-- It writes `Sources/BuildStamp/BuildStamp.swift` before the compile. That file is gitignored. It holds one string, the stamped version. Both binaries print it from `--version` and then exit 0. `backup-folder` checks `--version` before the two-path usage check. `drop-box-watcher` checks it before the config-path check.
-- The stamp is the `VERSION` environment variable when that variable is set and non-empty. Otherwise it is the stdout of `git describe --tags`. When that command fails, the stamp is `0.0.0`, so a checkout with no tags still builds.
+- It writes `Sources/BuildStamp/BuildStamp.swift` before the compile. That file is gitignored. It holds the version, the full commit SHA from `git rev-parse HEAD`, and the UTC timestamp from `date -u +%Y-%m-%dT%H:%MZ`. CI and a local build use those same two commands. The version is the `VERSION` environment variable when that variable is set and non-empty. Otherwise it is the stdout of `git describe --tags --dirty`. If `git rev-parse HEAD` or that describe command fails, the script exits non-zero and does not invent a version.
+- `--version` prints one line and exits 0: the product name, the version, the first 7 characters of the full SHA, and the timestamp. The shape is `backup-folder v0.1.2 (abc1234, built 2026-10-30T18:52Z)`. `drop-box-watcher` uses its own product name and the same parenthetical. `--version --verbose`, in either order, prints the same line with the full SHA in place of the 7 characters. `backup-folder` checks these flags before the two-path usage check. `drop-box-watcher` checks them before the config-path check.
+- A release tag stays `vMAJOR.MINOR.PATCH` with no SHA and no timestamp in the tag. The release job sets `VERSION` to that plain tag, so the binaries it ships do not use a `git describe` suffix.
 - It runs `swift build -c release --product backup-folder --product drop-box-watcher` from the repo root.
 - It copies `.build/release/backup-folder` and `.build/release/drop-box-watcher` onto those names at the repo root.
 - It then signs each copied binary.
@@ -121,7 +122,7 @@ FR13. The tagging run signs with the identity. It exports `VERSION` to the tag n
 
 FR14. After verify, the `release` run checks `uname -m` is `arm64` and that `file` on each binary reports `arm64`. It writes `SHA256SUMS` with `shasum -a 256` of the two signed binaries, two spaces between hash and name, as `shasum` prints. The checksum file covers the signed bytes.
 
-FR15. After verify and checksums, the job attests each binary with `actions/attest` and verifies with `gh attestation verify` using the repo, the signer workflow path of this release workflow, and `--deny-self-hosted-runners`, including the existing retry loop. Attestation is not the install check. It then pushes the lightweight tag and uploads with `softprops/action-gh-release@v2`, `tag_name` set to that tag, the target commit set to `HEAD`, `generate_release_notes` true, and files `backup-folder`, `drop-box-watcher`, and `SHA256SUMS`. A failed attest does not push the tag. A `noop` whose release already exists uploads nothing. A `noop` whose tag exists on `HEAD` but whose GitHub release is missing builds, signs, and uploads to that existing tag, and does not create a new tag.
+FR15. After verify and checksums, the job attests each binary with `actions/attest` and verifies with `gh attestation verify` using the repo, the signer workflow path of this release workflow, and `--deny-self-hosted-runners`, including the existing retry loop. Attestation is not the install check. It then pushes the lightweight tag and uploads with `softprops/action-gh-release@v2`, `tag_name` set to that plain tag, the target commit set to `HEAD`, `generate_release_notes` true, and files `backup-folder`, `drop-box-watcher`, and `SHA256SUMS`. The release body also contains the full commit SHA and the UTC build timestamp that were stamped into the binaries. A failed attest does not push the tag. A `noop` whose release already exists uploads nothing. A `noop` whose tag exists on `HEAD` but whose GitHub release is missing builds, signs, and uploads to that existing tag, and does not create a new tag.
 
 ### 5.4 Install, pins, docs
 
@@ -145,7 +146,7 @@ FR20. No phase adds a required status check. The required contexts stay `macos` 
 
 AC1. `Package.swift` lists executable products `backup-folder` and `drop-box-watcher`, a `BuildStamp` library, and `// swift-tools-version: 6.0`. `bash scripts/build.sh` with `SIGN_IDENTITY` unset is the command in the `macos` job, in the CodeQL manual build, and in `README.md`.
 
-AC2. On macOS, `bash scripts/build.sh` exits 0, writes both repo-root binaries, and `codesign -dv` on each shows an ad-hoc signature when `SIGN_IDENTITY` is unset. `backup-folder --version` and `drop-box-watcher --version` print the same line. With `VERSION` set to `v9.9.9` that line is `v9.9.9`. The `macos` smoke still prints `macos-smoke: build OK, clonefile probe OK, snapshot OK, COW OK`. The watcher smoke still prints `macos-watcher: build OK`, `macos-watcher: notify OK`, and `macos-watcher: unchanged OK`.
+AC2. On macOS, `bash scripts/build.sh` exits 0, writes both repo-root binaries, and `codesign -dv` on each shows an ad-hoc signature when `SIGN_IDENTITY` is unset. With `VERSION` set to `v9.9.9`, `backup-folder --version` prints `backup-folder v9.9.9 (` plus the first 7 characters of `git rev-parse HEAD`, plus `, built ` and a UTC timestamp matching `date -u +%Y-%m-%dT%H:%MZ`. `drop-box-watcher --version` matches with its product name. `--version --verbose` on each prints the full `git rev-parse HEAD` value in that line. The `macos` smoke still prints `macos-smoke: build OK, clonefile probe OK, snapshot OK, COW OK`. The watcher smoke still prints `macos-watcher: build OK`, `macos-watcher: notify OK`, and `macos-watcher: unchanged OK`.
 
 AC3. `tests/macos-smoke.sh` and `tests/macos-watcher.sh` do not invoke `swiftc` on either product. `tests/build-backup-folder.sh` is gone. `.github/workflows/test.yml` still has `timeout-minutes: 5` on `macos` and on `linux`, and the `linux` job does not contain `scripts/build.sh` or `swift build`.
 
@@ -153,7 +154,7 @@ AC4. `.github/workflows/codeql.yml` has no `pull_request` key, schedule `0 6 * *
 
 AC5. `bash tests/release-version-test.sh` exits 0. It covers no tags becoming `v0.1.1`, `v0.1.9` becoming `v0.1.10`, `release:minor`, `release:major`, both labels failing, a subject with no pull request number staying a patch, and a `HEAD` that already has a semver tag returning `noop`.
 
-AC6. `bash tests/release-workflow.sh` exits 0. It requires the `publish` job, the `main` push trigger, `fetch-depth: 0`, the two secret names, `SIGN_IDENTITY`, `VERSION`, `codesign --verify --strict`, `SHA256SUMS`, `uname -m`, a tag ref push, and the attestation flags. It rejects a `pull_request` trigger, a `schedule` trigger, a tag trigger, a job id `macos` or `linux` inside `release.yml`, `spctl`, `git commit`, a push of `main`, `timeout-minutes` on `publish`, and a `VERSION` file.
+AC6. `bash tests/release-workflow.sh` exits 0. It requires the `publish` job, the `main` push trigger, `fetch-depth: 0`, the two secret names, `SIGN_IDENTITY`, `VERSION`, `codesign --verify --strict`, `SHA256SUMS`, `uname -m`, a tag ref push, the full SHA in the release body, and the attestation flags. It rejects a `pull_request` trigger, a `schedule` trigger, a tag trigger, a job id `macos` or `linux` inside `release.yml`, `spctl`, `git commit`, a push of `main`, `timeout-minutes` on `publish`, and a `VERSION` file. `scripts/build.sh` contains `git rev-parse HEAD`, `git describe --tags --dirty`, and `date -u +%Y-%m-%dT%H:%MZ`.
 
 AC7. `bash tests/install-roger-tools-test.sh` exits 0. A pinned install with a stub `gh` fails when the checksum does not match and succeeds when it does. The script source does not contain `gh attestation verify`.
 
@@ -171,7 +172,9 @@ AC10. The spec pull request's diff is only `intent/release-builds/`. No later ph
 
 **D3 — arm64 release assets.** Checked 2026-10-30. Workflow run 41104339464 on `9ddd15a` used the `macos` job label `macos-latest` and logged image `macos-26-arm64`. GitHub's hosted-runner table lists `macos-latest` as the arm64 macOS image. The release fails if `uname -m` is not `arm64`. Intel labels exist and are not used.
 
-**D4 — One command.** The command is `bash scripts/build.sh` with no arguments. The `macos` job, CodeQL, the release job, and a local build all use it. `SIGN_IDENTITY` is the signing switch. `VERSION` is the stamp switch. The release job sets both. A local build leaves `VERSION` unset and gets `git describe --tags`. The `macos` job leaves `SIGN_IDENTITY` unset.
+**D4 — One command.** The command is `bash scripts/build.sh` with no arguments. The `macos` job, CodeQL, the release job, and a local build all use it. `SIGN_IDENTITY` is the signing switch. `VERSION` is the version half of the stamp. The release job sets both. A local build leaves `VERSION` unset and gets `git describe --tags --dirty`. The SHA and the timestamp always come from `git rev-parse HEAD` and `date -u +%Y-%m-%dT%H:%MZ`. The `macos` job leaves `SIGN_IDENTITY` unset.
+
+**D13 — Plain tag, SHA and time in the binary.** Nikolay added this. The tag stays `vMAJOR.MINOR.PATCH` with no SHA in the name. Both binaries stamp the full commit SHA and the UTC build timestamp next to the version. `--version` shows a 7-character prefix of that SHA. `--version --verbose` shows the full SHA. The release notes show the full SHA and the same timestamp. `git describe --tags --dirty` replaces the earlier `git describe --tags` fallback, and the script no longer substitutes `0.0.0` when describe fails.
 
 **D5 — Tools version 6.0.** The `macos-latest` image in run 41104339464 lists default Xcode 26.6. Apple's Xcode system requirements list that Xcode's compiler as Swift 6.3, and the Swift.org announcement for Swift 6.3.3 says Xcode 26.6 contains it. `mise.toml` pins Swift 6.4 for the Linux toolchain only. A tools version of 6.4 would be newer than the runner's compiler. Tools version 6.0 is accepted by Swift 6.3. This draft did not run `swift --version` on the runner. The image readme lists Xcode and does not print a Swift version line.
 

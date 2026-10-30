@@ -2,8 +2,8 @@
 
 | | |
 |---|---|
-| Implements | [spec.md](spec.md) Draft 2 |
-| Status | Draft 2 |
+| Implements | [spec.md](spec.md) Draft 3 |
+| Status | Draft 3 |
 | Stage | 3 · Build |
 
 Spec wins. Update this file in the same change whenever implementation departs from it.
@@ -38,13 +38,13 @@ A missing signing secret is not a stop. FR12 fails that run before the tag push.
 Files: `Package.swift`, `Sources/backup-folder/main.swift`, `Sources/backup-folder/Retention.swift`, `Sources/backup-folder/PathCheck.swift`, `Sources/backup-folder/WalkPolicy.swift`, `drop-box-watcher/main.swift`, `scripts/build.sh`, `.gitignore`, `.github/workflows/test.yml`, `.github/workflows/codeql.yml`, `.github/workflows/release.yml`, `tests/macos-smoke.sh`, `tests/macos-watcher.sh`, `tests/build-entry-test.sh`, `AGENTS.md`, `README.md`. Delete `backup-folder.swift`, `Retention.swift`, `PathCheck.swift`, `WalkPolicy.swift`, and `tests/build-backup-folder.sh` from the repo root. Do not add a `VERSION` file. Do not commit `Sources/BuildStamp/BuildStamp.swift`.
 
 1. Add `Package.swift` as FR1, including the `BuildStamp` library. Move the snapshot sources as FR2. `main.swift` is the old `backup-folder.swift` contents, plus the `--version` check. Add the same check to `drop-box-watcher/main.swift`. Change the gitignore entry `backup-folder` to `/backup-folder`, and ignore the generated `Sources/BuildStamp/BuildStamp.swift`.
-2. Add `scripts/build.sh` as FR3 and FR4. `chmod +x` it. Darwin check first. Write the stamp from `VERSION`, else `git describe --tags`, else `0.0.0`. `SIGN_IDENTITY` unset means `codesign --sign - --force`. A set value means `codesign --sign "$SIGN_IDENTITY" --force --options runtime`.
-3. Point the `macos` job at `bash scripts/build.sh` before the smokes, with `SIGN_IDENTITY` unset. Leave `timeout-minutes: 5` and `runs-on: macos-latest`. The next step runs `codesign -dv` on each repo-root binary and fails unless the output contains `Signature=adhoc`. It runs each binary with `--version` and checks the two lines match. One job step also runs `VERSION=v9.9.9 bash scripts/build.sh` and checks both binaries print `v9.9.9`. Update both smokes so they do not compile `backup-folder` or `drop-box-watcher`. They fail with the build-script name if a binary is missing. Leave the `swiftc` lines for `clonefile-probe` and `hold-lock`.
+2. Add `scripts/build.sh` as FR3 and FR4. `chmod +x` it. Darwin check first. Stamp the version from `VERSION`, else `git describe --tags --dirty`, and exit non-zero if that describe fails. Always stamp `git rev-parse HEAD` and `date -u +%Y-%m-%dT%H:%MZ`. `SIGN_IDENTITY` unset means `codesign --sign - --force`. A set value means `codesign --sign "$SIGN_IDENTITY" --force --options runtime`.
+3. Point the `macos` job at `bash scripts/build.sh` before the smokes, with `SIGN_IDENTITY` unset. Leave `timeout-minutes: 5` and `runs-on: macos-latest`. Fetch tags in that checkout. If `git describe --tags --dirty` fails, export `VERSION=v0.0.0` for that job only, so a pull request can build before the first tag. The release job does not use that value. The next step runs `codesign -dv` on each repo-root binary and fails unless the output contains `Signature=adhoc`. It runs `VERSION=v9.9.9 bash scripts/build.sh` and checks `--version` and `--version --verbose` against AC2. Update both smokes so they do not compile `backup-folder` or `drop-box-watcher`. They fail with the build-script name if a binary is missing. Leave the `swiftc` lines for `clonefile-probe` and `hold-lock`.
 4. Point the `linux` compile lines at `Sources/backup-folder/Retention.swift` and `Sources/backup-folder/PathCheck.swift`. Do not add `walk-tests`. Do not run `swift build` or `scripts/build.sh`. Leave `timeout-minutes: 5`.
 5. Replace the CodeQL manual build with `bash scripts/build.sh`. Change nothing else in that workflow.
 6. Replace the two compile steps in `release.yml` with `bash scripts/build.sh`. Leave the tag trigger, the job id `macos`, attestation, and the upload until Phase 1. `SIGN_IDENTITY` stays unset on that temporary step.
 7. Add `tests/build-entry-test.sh`. It greps the files for AC1, AC3, and AC4 and exits non-zero on a miss. It does not compile. Run it from the `macos` job and the `linux` job.
-8. Update `AGENTS.md` and the `README.md` build section to `bash scripts/build.sh`. The build section says a set `SIGN_IDENTITY` selects the certificate and an unset variable is ad-hoc, and that `VERSION` stamps `--version` while an unset `VERSION` uses `git describe --tags`. The openssl procedure, TCC paragraph, and watcher install rewrite wait for Phase 2. When rewriting the `linux` sentence, list the retention and path compiles that `test.yml` actually runs. Do not claim that `walk-tests` runs.
+8. Update `AGENTS.md` and the `README.md` build section to `bash scripts/build.sh`. The build section says a set `SIGN_IDENTITY` selects the certificate and an unset variable is ad-hoc, and that an unset `VERSION` uses `git describe --tags --dirty` while the SHA and the timestamp always come from `git rev-parse HEAD` and `date -u +%Y-%m-%dT%H:%MZ`. The openssl procedure, TCC paragraph, and watcher install rewrite wait for Phase 2. When rewriting the `linux` sentence, list the retention and path compiles that `test.yml` actually runs. Do not claim that `walk-tests` runs.
 
 DoD: `bash tests/build-entry-test.sh` and `bash tests/linux-unit.sh` exit 0 on Linux, and the retention and path binaries pass from the new paths. The phase is done when the pull request's `macos` and `linux` checks are green.
 
@@ -53,7 +53,7 @@ DoD: `bash tests/build-entry-test.sh` and `bash tests/linux-unit.sh` exit 0 on L
 Files: `scripts/release-version.sh`, `tests/release-version-test.sh`, `tests/release-workflow.sh`, `.github/workflows/release.yml`, `.github/workflows/test.yml`, `AGENTS.md`. Do not add a `VERSION` file.
 
 1. Add `scripts/release-version.sh` with the FR10 decision. Add `tests/release-version-test.sh` for AC5, using a temporary git repo and fixture labels. No network and no push. The test must not create a commit on a branch named `main` outside that temp repo.
-2. Replace `release.yml` with the FR9 workflow. Job id `publish` only. Fetch tags. Call `scripts/release-version.sh`. Implement FR11, FR12, FR13, FR14, and FR15. The keychain trap runs on failure. Secret values are not echoed. `base64 --decode` reads the p12 secret. The build step exports `SIGN_IDENTITY` as `Nikolay Botev Code Signing` and `VERSION` as the tag name. The only `git push` is the tag ref, using `GITHUB_TOKEN`.
+2. Replace `release.yml` with the FR9 workflow. Job id `publish` only. Fetch tags. Call `scripts/release-version.sh`. Implement FR11, FR12, FR13, FR14, and FR15. The keychain trap runs on failure. Secret values are not echoed. `base64 --decode` reads the p12 secret. The build step exports `SIGN_IDENTITY` as `Nikolay Botev Code Signing` and `VERSION` as the plain tag, with no SHA in the tag. The release body includes the full SHA and the UTC timestamp from the stamp. The only `git push` is the tag ref, using `GITHUB_TOKEN`.
 3. Rewrite `tests/release-workflow.sh` for AC6. Match the job id under `jobs:`, not the substring `macos` inside `macos-latest`. Keep the attestation assertions. Drop the assertions that require a tag trigger and that forbid every `branches:` key. Reject `git commit` and a push whose ref is a branch.
 4. Run `tests/release-version-test.sh` and `tests/release-workflow.sh` from the `macos` and `linux` jobs. Do not change their timeouts.
 5. Update the `AGENTS.md` release sentence so it describes the `publish` job on a push to `main`: it pushes a tag and does not push a commit.
@@ -84,7 +84,7 @@ This phase does not start until the first `v*` release exists. With no release l
 The pull request body lists the steps Nikolay runs, and nobody else:
 
 1. Finish the README code-signing section once: openssl, `security import`, `add-trusted-cert -p codeSign`, a copy in 1Password, `gh secret set` from a pipe or a file, then delete the temp files.
-2. `export SIGN_IDENTITY="Nikolay Botev Code Signing"` and `bash scripts/build.sh` for a local build. Omit `SIGN_IDENTITY` for an ad-hoc build. Omit `VERSION` so the stamp comes from `git describe --tags`.
+2. `export SIGN_IDENTITY="Nikolay Botev Code Signing"` and `bash scripts/build.sh` for a local build. Omit `SIGN_IDENTITY` for an ad-hoc build. Omit `VERSION` so the version comes from `git describe --tags --dirty`. `--version` shows the short SHA. `--version --verbose` shows the full SHA.
 3. For a minor or major release, add label `release:minor` or `release:major` on the pull request before it merges. Otherwise the next tag is a patch.
 4. After this pin is on `main`, `bash scripts/install-roger-tools.sh` downloads that tag and checks `SHA256SUMS`.
 
