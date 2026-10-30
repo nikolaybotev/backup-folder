@@ -101,7 +101,11 @@ if [[ "$snap_count" -ne 2 ]]; then
   ls -la "$DEST" >&2
   exit 1
 fi
-mapfile -t snaps < <(list_snapshot_dirs "$DEST" | sort)
+snaps=()
+while IFS= read -r _snap_name; do
+  [[ -z "$_snap_name" ]] && continue
+  snaps+=("$_snap_name")
+done < <(list_snapshot_dirs "$DEST" | sort)
 if [[ "${#snaps[@]}" -ne 2 || "${snaps[0]}" == "${snaps[1]}" ]]; then
   echo "Expected two distinct snapshot directory names:" >&2
   printf '%s\n' "${snaps[@]}" >&2
