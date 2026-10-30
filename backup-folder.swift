@@ -87,25 +87,61 @@ do {
 // Each file is an APFS copy-on-write clone; falls back to a normal copy if cloning fails.
 var failures = 0
 var fallbacks = 0
-func cloneTree(_ s: String, _ d: String) {
+func cloneTree(_ s: String, _ d: String, _ visited: inout Set<DirectoryId>) {
     do { try fm.createDirectory(atPath: d, withIntermediateDirectories: true) } catch { log("ERROR: mkdir \(d): \(error)"); failures += 1; return }
     guard let items = try? fm.contentsOfDirectory(atPath: s) else { log("ERROR: list \(s)"); failures += 1; return }
     for name in items {
         let sp = s + "/" + name, dp = d + "/" + name
-        var isDir: ObjCBool = false
-        guard fm.fileExists(atPath: sp, isDirectory: &isDir) else { continue }
-        if isDir.boolValue { cloneTree(sp, dp); continue }
-        if clonefile(sp, dp, UInt32(CLONE_NOFOLLOW)) != 0 {
-            let err = errno
-            do {
-                try fm.copyItem(atPath: sp, toPath: dp)
-                log("WARNING: clonefile failed for \(sp) (errno \(err)); full copy")
-                fallbacks += 1
-            } catch { log("ERROR: copy \(sp): \(error)"); failures += 1 }
+        let attrs: [FileAttributeKey: Any]
+        do {
+            attrs = try fm.attributesOfItem(atPath: sp)
+        } catch {
+            log("ERROR: attributes \(sp): \(error)")
+            failures += 1
+            continue
+        }
+        let fileType = attrs[.type] as? FileAttributeType
+        let isSymlink = fileType == .typeSymbolicLink
+            || (try? fm.destinationOfSymbolicLink(atPath: sp)) != nil
+        if isSymlink {
+            if clonefile(sp, dp, UInt32(CLONE_NOFOLLOW)) != 0 {
+                log("ERROR: clonefile \(sp) (errno \(errno))")
+                failures += 1
+            }
+            continue
+        }
+        switch fileType {
+        case .typeDirectory:
+            let sysNum = attrs[.systemNumber] as? NSNumber
+            let sysFileNum = attrs[.systemFileNumber] as? NSNumber
+            if !WalkPolicy.mayEnter(systemNumber: sysNum, systemFileNumber: sysFileNum, visited: &visited) {
+                if sysNum == nil || sysFileNum == nil {
+                    log("ERROR: directory id missing for \(sp)")
+                } else {
+                    log("ERROR: cycle \(sp)")
+                }
+                failures += 1
+                continue
+            }
+            cloneTree(sp, dp, &visited)
+        case .typeRegular:
+            if clonefile(sp, dp, UInt32(CLONE_NOFOLLOW)) != 0 {
+                let err = errno
+                do {
+                    try fm.copyItem(atPath: sp, toPath: dp)
+                    log("WARNING: clonefile failed for \(sp) (errno \(err)); full copy")
+                    fallbacks += 1
+                } catch { log("ERROR: copy \(sp): \(error)"); failures += 1 }
+            }
+        default:
+            let typeLabel = fileType.map { String(describing: $0.rawValue) } ?? "unknown"
+            log("ERROR: skip special file \(sp) (\(typeLabel))")
+            failures += 1
         }
     }
 }
-cloneTree(src, tmp)
+var visited = Set<DirectoryId>()
+cloneTree(src, tmp, &visited)
 if failures > 0 {
     log("ERROR: \(failures) item(s) failed in \(snapName); not publishing")
     do { try fm.removeItem(atPath: tmp) } catch { log("ERROR: remove \(tmp): \(error)") }
