@@ -2,15 +2,15 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-INSTALL_SCRIPT="$ROOT/scripts/install-roger-tools.sh"
+INSTALL_SCRIPT="$ROOT/scripts/install-tools.sh"
 
 fail() {
-  echo "install-roger-tools-test: $*" >&2
+  echo "install-tools-test: $*" >&2
   exit 1
 }
 
 ok() {
-  echo "install-roger-tools-test: $*"
+  echo "install-tools-test: $*"
 }
 
 [[ -x "$INSTALL_SCRIPT" ]] || chmod +x "$INSTALL_SCRIPT"
@@ -33,15 +33,53 @@ fi
 # shellcheck source=/dev/null
 source "$INSTALL_SCRIPT"
 
-if roger_install_refuse 0 "${HOME}/bin"; then
+if install_refuse 0 "${HOME}/bin"; then
   fail "expected refusal for uid 0"
 fi
 ok "refuses uid 0"
 
-if roger_install_refuse 501 "/Users/test/Backups/mirror"; then
+if install_refuse 501 "/Users/test/Backups/mirror"; then
   fail "expected refusal for Backups path component"
 fi
 ok "refuses Backups path component"
+
+# AC3: missing default pin file (PINS_FILE unset)
+MISS_HOME="$(mktemp -d "${TMPDIR:-/tmp}/install-test-miss-home.XXXXXX")"
+cleanup_miss() {
+  rm -rf "$MISS_HOME"
+}
+trap cleanup_miss EXIT
+(
+  export HOME="$MISS_HOME"
+  unset PINS_FILE
+  if bash "$INSTALL_SCRIPT"; then
+    exit 1
+  fi
+  [[ ! -e "$MISS_HOME/bin" ]] || exit 2
+  [[ ! -e "$MISS_HOME/.config/backup-folder" ]] || exit 3
+) || fail "missing default pin file case failed"
+ok "missing default pin file exits non-zero without creating bin or config dir"
+trap - EXIT
+cleanup_miss
+
+# AC3: default pin path with pins.txt.example copied (PINS_FILE unset)
+SUCCESS_HOME="$(mktemp -d "${TMPDIR:-/tmp}/install-test-success-home.XXXXXX")"
+cleanup_success() {
+  rm -rf "$SUCCESS_HOME"
+}
+trap cleanup_success EXIT
+(
+  export HOME="$SUCCESS_HOME"
+  unset PINS_FILE
+  mkdir -p "$SUCCESS_HOME/.config/backup-folder"
+  cp "$ROOT/pins.txt.example" "$SUCCESS_HOME/.config/backup-folder/pins.txt"
+  bash "$INSTALL_SCRIPT" || exit 1
+  [[ ! -e "$SUCCESS_HOME/bin/backup-folder" ]] || exit 2
+  [[ ! -e "$SUCCESS_HOME/bin/drop-box-watcher" ]] || exit 3
+) || fail "default pin path with example file failed"
+ok "default pin path with example unpinned lines exits 0 without installing"
+trap - EXIT
+cleanup_success
 
 TMP_HOME="$(mktemp -d "${TMPDIR:-/tmp}/install-test-home.XXXXXX")"
 cleanup() {
@@ -124,4 +162,4 @@ mode="$(stat -c '%a' "$dest" 2>/dev/null || stat -f '%OLp' "$dest")"
 [[ "$mode" == "755" ]] || fail "expected mode 755, got $mode"
 ok "stub gh install leaves mode 755"
 
-echo "install-roger-tools-test: all checks passed"
+echo "install-tools-test: all checks passed"

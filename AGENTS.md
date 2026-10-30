@@ -11,10 +11,10 @@ Small macOS CLI that snapshots a folder with APFS copy-on-write clones (`backup-
 - CI smoke (macOS): `bash tests/macos-smoke.sh` (healthy: line `macos-smoke: build OK, clonefile probe OK, snapshot OK, COW OK`). Snapshot directories match `yyyy-MM-dd_HHmm` or `yyyy-MM-dd_HHmmss-<pid>` (with optional numeric suffixes); the script runs two successful snapshots and a non-blocking busy-lock skip. Requires repo-root binaries from `bash scripts/build.sh`.
 - Watcher smoke (macOS): `bash tests/macos-watcher.sh` (healthy: lines `macos-watcher: build OK`, `macos-watcher: notify OK`, and `macos-watcher: unchanged OK`). Uses the repo-root `drop-box-watcher` binary from `bash scripts/build.sh`.
 - Secret scan (Linux or macOS): `bash tests/no-secrets.sh` (healthy: line `no-secrets: all checks passed`). Also runs in the `macos` CI job.
-- Install Roger tools (Linux or macOS): `bash tests/install-roger-tools-test.sh` (healthy: line `install-roger-tools-test: all checks passed`). Also runs in the `macos` CI job. Nikolay runs `bash scripts/install-roger-tools.sh` on Roger when `pins.txt` names real `v*` tags; until then unpinned tools are skipped. The script installs only into `~/bin`, refuses root (uid 0), refuses any install path with a `Backups` path component, and does not use `launchctl`.
+- Install tools (Linux or macOS): `bash tests/install-tools-test.sh` (healthy: line `install-tools-test: all checks passed`). Also runs in the `macos` CI job. Nikolay runs `bash scripts/install-tools.sh` on Roger when `~/.config/backup-folder/pins.txt` names real `v*` tags; until then unpinned tools are skipped. The script installs only into `~/bin`, refuses root (uid 0), refuses any install path with a `Backups` path component, and does not use `launchctl`.
 - Ensure backup directories (Linux or macOS): `bash tests/ensure-backup-dirs-test.sh` (healthy: line `ensure-backup-dirs-test: all checks passed`). Also runs in the `macos` CI job. Nikolay passes absolute home-mirrored snapshot paths as arguments to `bash scripts/ensure-backup-dirs.sh`; CI and agents do not run it against a live home.
 - Setup and restore docs (Linux or macOS): `bash tests/setup-docs.sh` (healthy: line `setup-docs: all checks passed`). Also runs in the `macos` CI job. Validates `docs/setup.md` and `docs/restore.md` bullet marks and catalog anchors.
-- `pins.txt` lists each tool and its release tag (`unpinned` until Nikolay sets a real pin after a published release). Agents do not set a real pin or run the install script against Roger's home.
+- `pins.txt.example` documents each tool and its release tag (`unpinned` until Nikolay sets a real pin in `~/.config/backup-folder/pins.txt` after a published release). Agents do not write the live pin file, do not commit a real pin, and do not run the install script against Roger's home.
 - Cloud Agent install: `bash .cursor/install.sh` (healthy: `swiftc --version` and skills under `~/.cursor/skills-cursor`).
 - Cloud Agent start: `bash .cursor/start.sh` (no-op for this repo).
 - CI: `.github/workflows/test.yml` (workflow `test`, jobs `macos` and `linux`) runs on every pull request and on pushes to `main`. Required pull request checks are `macos` and `linux`. The `macos` job exports `VERSION=v0.0.0`, runs `bash scripts/build.sh`, then runs `tests/macos-smoke.sh`, `tests/macos-watcher.sh`, and `tests/linux-unit.sh`, plus script and template checks on `macos-latest`. The `linux` job on `ubuntu-latest` installs Swift via `mise`, runs `tests/build-entry-test.sh`, `tests/linux-unit.sh`, compiles `Sources/backup-folder/Retention.swift` with `tests/retention-tests.swift`, and compiles `Sources/backup-folder/PathCheck.swift` with `tests/path-tests.swift`; it does not build the package or compile `Sources/backup-folder/main.swift`.
@@ -27,7 +27,7 @@ Small macOS CLI that snapshots a folder with APFS copy-on-write clones (`backup-
 - Docs follow the solo AI-native SDLC chain when present: `intent/<change>/intent.md` → `spec.md` → `plan.md`. This repo may not have that chain until onboarding intents land.
 - Do not commit real backup paths, hostnames, personal folder names, WireGuard keys, tunnel addresses, endpoints, ports, or 1Password item URIs in tests, fixtures, or templates (use the placeholder tokens).
 - Do not install the binary into `~/Backups` or `~/Backups/bin/backup-folder` from CI or agent work unless an intent explicitly says so.
-- Do not copy `drop-box-watcher` into `~/bin`, write the real watcher config, or load `com.nikolay.drop-box-watcher` from CI or agent work. Nikolay follows [`README.md`](README.md) on Roger when a release pin exists in `pins.txt`.
+- Do not copy `drop-box-watcher` into `~/bin`, write the real watcher config, or load `com.nikolay.drop-box-watcher` from CI or agent work. Nikolay follows [`README.md`](README.md) on Roger when a release pin exists in `~/.config/backup-folder/pins.txt`.
 
 ## Architecture
 
@@ -45,7 +45,7 @@ Small macOS CLI that snapshots a folder with APFS copy-on-write clones (`backup-
 - Do not claim a GitHub release was published unless the `publish` job on a push to `main` succeeded.
 - Do not create or change branch protection rulesets in GitHub; Roger maintains them with `gh`.
 - Cloud Agents on Linux can parse and edit the source but cannot execute `clonefile`, APFS clones, or `launchctl`.
-- Agents do not run [`docs/setup.md`](docs/setup.md) or [`docs/restore.md`](docs/restore.md) on a live Mac, do not run `scripts/install-roger-tools.sh` against Roger's home, and do not run `launchctl` on Roger.
+- Agents do not run [`docs/setup.md`](docs/setup.md) or [`docs/restore.md`](docs/restore.md) on a live Mac, do not run `scripts/install-tools.sh` against Roger's home, and do not run `launchctl` on Roger.
 
 ## Cursor Cloud specific instructions
 

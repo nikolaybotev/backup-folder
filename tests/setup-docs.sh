@@ -81,13 +81,15 @@ setup_anchors=(
   'fdesetup'
   'TM Roger'
   'External'
-  'install-roger-tools.sh'
+  'install-tools.sh'
   'code-signing'
   'ensure-backup-dirs.sh'
   'home-mirrored'
   'com.nikolay.backup.NAME'
   'Drop Box'
   'config.toml'
+  '.config/backup-folder/pins.txt'
+  'pins.txt.example'
 )
 
 restore_anchors=(
@@ -95,8 +97,10 @@ restore_anchors=(
   'home-mirrored'
   'Keep Downloaded'
   'config.toml'
-  'install-roger-tools.sh'
+  'install-tools.sh'
   'roger-file-access-policy'
+  '.config/backup-folder/pins.txt'
+  'pins.txt.example'
 )
 
 for a in "${setup_anchors[@]}"; do
