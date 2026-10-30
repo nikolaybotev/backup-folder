@@ -29,7 +29,7 @@ Files: `backup-folder.swift`, `tests/macos-smoke.sh`, `README.md`.
 
 1. After `cloneTree`, when `failures > 0`, log `ERROR: <n> item(s) failed in <ts>; not publishing`, remove only this run’s temp directory, and exit 1. Skip `moveItem`, the `OK` line, and the prune loop.
 2. Leave the `failures == 0` path, the name format, and the prune predicates as they are. Do not count a clone fallback as a failure.
-3. Extend `tests/macos-smoke.sh` with a second source and dest from `mktemp`. Create a subdirectory, `chmod 000` it, run the tool, and assert AC2. In the existing `EXIT` trap, `chmod -R u+rwx` the failure fixture before `rm`. Keep the success fixture’s `_[0-9]{4}$` filter and the `2 files, 0 full copies` assertion.
+3. Extend `tests/macos-smoke.sh` with a second source and dest from `mktemp`. Create a subdirectory, `chmod 000` it, run the tool, and assert AC2. In the existing `EXIT` trap, `chmod -R u+rwx` the failure fixture before `rm`. Keep the success fixture’s `_[0-9]{4}$` filter and the `4 files, 0 full copies` assertion (plan step 3 previously said `2 files`; main after clone-fallback-visibility uses four counted files in the success smoke).
 4. Update the README sentence that says the temp directory is renamed when the walk finishes, so it says the rename happens when every item succeeded.
 5. Do not add a Swift file or a Linux job. Do not edit `release.yml`, `codeql.yml`, or the protect-main script.
 

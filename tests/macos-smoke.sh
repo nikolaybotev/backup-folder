@@ -12,7 +12,12 @@ swiftc -O -o clonefile-probe tests/clonefile-probe.swift
 
 SRC="$(mktemp -d)"
 DEST="$(mktemp -d)"
-cleanup() { rm -rf "$SRC" "$DEST"; }
+FAIL_SRC="$(mktemp -d)"
+FAIL_DEST="$(mktemp -d)"
+cleanup() {
+  chmod -R u+rwx "$FAIL_SRC" 2>/dev/null || true
+  rm -rf "$SRC" "$DEST" "$FAIL_SRC" "$FAIL_DEST"
+}
 trap cleanup EXIT
 
 mount_point="$(df "$SRC" | awk 'NR==2 {print $NF}')"
@@ -77,5 +82,42 @@ set +e
 "$ROOT/backup-folder" >/dev/null 2>&1
 [[ $? -eq 2 ]]
 set -e
+
+mkdir -p "$FAIL_SRC/locked"
+printf 'fixture-fail\n' >"$FAIL_SRC/locked/inside.txt"
+chmod 000 "$FAIL_SRC/locked"
+
+set +e
+"$ROOT/backup-folder" "$FAIL_SRC" "$FAIL_DEST" >/dev/null 2>&1
+fail_exit=$?
+set -e
+if [[ "$fail_exit" -ne 1 ]]; then
+  echo "Expected exit 1 for unreadable subdirectory fixture, got ${fail_exit}" >&2
+  exit 1
+fi
+if ! grep -q 'not publishing' "$FAIL_DEST/backup.log" 2>/dev/null; then
+  echo "failure fixture backup.log missing not publishing:" >&2
+  cat "$FAIL_DEST/backup.log" >&2 || true
+  exit 1
+fi
+if grep -q 'OK snapshot' "$FAIL_DEST/backup.log" 2>/dev/null; then
+  echo "failure fixture must not log OK snapshot:" >&2
+  cat "$FAIL_DEST/backup.log" >&2
+  exit 1
+fi
+fail_snap_count=0
+while IFS= read -r _fail_name; do
+  [[ -z "$_fail_name" ]] && continue
+  fail_snap_count=$((fail_snap_count + 1))
+done < <(
+  find "$FAIL_DEST" -maxdepth 1 -mindepth 1 -type d -print \
+    | sed 's|.*/||' \
+    | grep -E '^[0-9]{4}-[0-9]{2}-[0-9]{2}_[0-9]{4}$' || true
+)
+if [[ "$fail_snap_count" -ne 0 ]]; then
+  echo "failure fixture should leave no snapshot directory, found count=${fail_snap_count}" >&2
+  ls -la "$FAIL_DEST" >&2
+  exit 1
+fi
 
 echo "macos-smoke: build OK, clonefile probe OK, snapshot OK, COW OK"
