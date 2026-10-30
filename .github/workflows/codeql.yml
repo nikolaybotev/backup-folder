@@ -36,7 +36,7 @@ jobs:
           build-mode: manual
 
       - name: Build for CodeQL
-        run: swiftc -O -o backup-folder backup-folder.swift
+        run: bash tests/build-backup-folder.sh
 
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@v4
