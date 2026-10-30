@@ -10,9 +10,9 @@ Small macOS CLI that snapshots a folder with APFS copy-on-write clones (`backup-
 - Cloud Agent install: `bash .cursor/install.sh` (healthy: `swiftc --version` and skills under `~/.cursor/skills-cursor`).
 - Cloud Agent start: `bash .cursor/start.sh` (no-op for this repo).
 - CI: `.github/workflows/test.yml` (workflow `test`, job `macos`) runs on every pull request and on pushes to `main`. It builds with `swiftc` and runs `tests/macos-smoke.sh` on `macos-latest`. There is no Linux CI job yet: all runtime logic lives in `backup-folder.swift` and requires Darwin.
-- CodeQL: not enabled. Compound uses CodeQL for `javascript-typescript` with `build-mode: none` on Ubuntu. This Swift CLI has no CodeQL autobuild setup and no Darwin-free module to analyze the way Compound analyzes JS.
+- CodeQL: `.github/workflows/codeql.yml` runs CodeQL (Swift) on pull requests and on pushes to `main` (plus a weekly schedule).
 - Release CD: `.github/workflows/release.yml` runs on tags matching `v*`, builds on `macos-latest`, and uploads the `backup-folder` binary to a GitHub release. Merging to `main` does not publish a release; only a tag push does. The maintainer creates tags when a build is ready for the deployment Mac.
-- Branch protection: `.github/workflows/protect-main.yml` runs `.github/scripts/protect-main-branch.sh` to block force-push and deletion on `main` and require check `macos`. HTTP 403 from the rulesets API means the maintainer must set the same rules in the GitHub UI.
+- Branch protection: managed outside this repo by the deployment Mac with `gh`; agents must not create or change GitHub rulesets.
 
 ## Conventions
 
@@ -31,6 +31,7 @@ Small macOS CLI that snapshots a folder with APFS copy-on-write clones (`backup-
 - Do not run `swift build`; there is no `Package.swift`.
 - Do not add a Linux CI job that type-checks or links this file until Darwin-free logic is extracted; a red Linux job is worse than none.
 - Do not claim a GitHub release was published unless a `v*` tag push actually ran `release.yml`.
+- Do not create or change branch protection rulesets in GitHub; the deployment Mac maintains them with `gh`.
 - Cloud Agents on Linux can parse and edit the source but cannot execute `clonefile`, APFS clones, or `launchctl`.
 
 ## Cursor Cloud specific instructions
