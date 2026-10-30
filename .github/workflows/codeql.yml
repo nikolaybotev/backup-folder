@@ -20,7 +20,7 @@ jobs:
     name: CodeQL (Swift)
     # Traced Swift extraction is unavailable on macOS 27 / Xcode 27; pin macos-26.
     runs-on: macos-26
-    timeout-minutes: 10 # hard cap; -Onone compile ~8–14 min, queue typically 2–5 s
+    timeout-minutes: 10 # hard cap; traced -Onone compile, queue typically 2–5 s
     permissions:
       contents: read
       security-events: write
@@ -28,6 +28,25 @@ jobs:
     steps:
       - name: Check out
         uses: actions/checkout@v4
+
+      - name: Untraced compile timing
+        env:
+          SWIFTC_OPT: -Onone
+        run: |
+          set -euo pipefail
+          echo "untraced backup-folder start $(date -u +%H:%M:%S)"
+          bash tests/build-backup-folder.sh "$RUNNER_TEMP/untraced-backup-folder"
+          echo "untraced backup-folder end $(date -u +%H:%M:%S)"
+          echo "untraced drop-box-watcher start $(date -u +%H:%M:%S)"
+          swiftc -Onone -o "$RUNNER_TEMP/untraced-drop-box-watcher" \
+            drop-box-watcher/Config.swift \
+            drop-box-watcher/Readiness.swift \
+            drop-box-watcher/Log.swift \
+            drop-box-watcher/WebhookHTTP.swift \
+            drop-box-watcher/WebhookNotifier.swift \
+            drop-box-watcher/Watcher.swift \
+            drop-box-watcher/main.swift
+          echo "untraced drop-box-watcher end $(date -u +%H:%M:%S)"
 
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v4
@@ -39,7 +58,11 @@ jobs:
         env:
           SWIFTC_OPT: -Onone
         run: |
+          set -euo pipefail
+          echo "traced backup-folder start $(date -u +%H:%M:%S)"
           bash tests/build-backup-folder.sh "$RUNNER_TEMP/backup-folder"
+          echo "traced backup-folder end $(date -u +%H:%M:%S)"
+          echo "traced drop-box-watcher start $(date -u +%H:%M:%S)"
           swiftc -Onone -o "$RUNNER_TEMP/drop-box-watcher" \
             drop-box-watcher/Config.swift \
             drop-box-watcher/Readiness.swift \
@@ -48,6 +71,39 @@ jobs:
             drop-box-watcher/WebhookNotifier.swift \
             drop-box-watcher/Watcher.swift \
             drop-box-watcher/main.swift
+          echo "traced drop-box-watcher end $(date -u +%H:%M:%S)"
+
+          echo "=== CodeQL extractor log sample ==="
+          db_root=""
+          if [ -d "$RUNNER_TEMP/codeql_databases" ]; then
+            db_root="$RUNNER_TEMP/codeql_databases"
+          else
+            db_root="$(find "$RUNNER_TEMP" -maxdepth 3 -type d -name 'codeql_databases' 2>/dev/null | head -1 || true)"
+          fi
+          if [ -z "$db_root" ] || [ ! -d "$db_root" ]; then
+            echo "No codeql_databases directory under RUNNER_TEMP"
+            exit 0
+          fi
+          found=0
+          while IFS= read -r f; do
+            found=1
+            lines="$(wc -l < "$f" | tr -d ' ')"
+            echo "--- ${f} (${lines} lines) ---"
+            if [ "$lines" -gt 80 ]; then
+              echo "Repeated module / interface tokens (top 30 by count):"
+              grep -iE 'module|swiftinterface|extract' "$f" \
+                | sed -E 's#^.*/([^/[:space:]]+(\.swiftinterface|\.swift)?).*#\1#' \
+                | sort | uniq -c | sort -rn | head -30 || true
+              echo "First 40 lines:"
+              head -40 "$f"
+            else
+              cat "$f"
+            fi
+          done < <(find "$db_root" -type f \( -iname '*extract*' -o -iname '*swiftinterface*' -o -iname '*module*' \) 2>/dev/null | head -15)
+          if [ "$found" -eq 0 ]; then
+            echo "No extractor logs matching *extract*, *swiftinterface*, or *module* under ${db_root}"
+            find "$db_root" -maxdepth 5 -type f 2>/dev/null | head -25
+          fi
 
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@v4
