@@ -11,6 +11,9 @@ final class DropBoxFolderWatcher: NSObject, NSFilePresenter {
         return q
     }()
 
+    /// Path from config (may be a symlink); used for `NSFilePresenter`.
+    private let watchFolderConfigured: URL
+    /// Resolved directory path; used for FSEvents and direct-child checks.
     private let watchFolderURL: URL
     private let ignorePatterns: [String]
     private let notifier: WebhookNotifier
@@ -18,7 +21,8 @@ final class DropBoxFolderWatcher: NSObject, NSFilePresenter {
     private var claimed: Set<WebhookClaim> = []
     private var fseventStream: FSEventStreamRef?
     private let fseventsQueue = DispatchQueue(label: "drop-box-watcher.fsevents")
-    private lazy var coordinator: NSFileCoordinator = NSFileCoordinator(filePresenter: self)
+    /// Separate coordinator for claim reads (avoid re-entrant coordination on the presenter queue).
+    private let claimCoordinator = NSFileCoordinator()
 
     init(
         watchFolderURL: URL,
@@ -26,9 +30,9 @@ final class DropBoxFolderWatcher: NSObject, NSFilePresenter {
         notifier: WebhookNotifier,
         log: OperationalLog
     ) {
-        let resolved = watchFolderURL.resolvingSymlinksInPath().standardizedFileURL
-        self.watchFolderURL = resolved
-        self.presentedItemURL = resolved
+        self.watchFolderConfigured = watchFolderURL.standardizedFileURL
+        self.watchFolderURL = watchFolderURL.resolvingSymlinksInPath().standardizedFileURL
+        self.presentedItemURL = self.watchFolderConfigured
         self.ignorePatterns = ignorePatterns
         self.notifier = notifier
         self.log = log
@@ -62,9 +66,20 @@ final class DropBoxFolderWatcher: NSObject, NSFilePresenter {
         }
     }
 
+    private func filesystemEqual(_ a: URL, _ b: URL) -> Bool {
+        let pa = a.resolvingSymlinksInPath().standardizedFileURL.path
+        let pb = b.resolvingSymlinksInPath().standardizedFileURL.path
+        if pa == pb { return true }
+        func stripPrivatePrefix(_ path: String) -> String {
+            if path.hasPrefix("/private") { return String(path.dropFirst("/private".count)) }
+            return path
+        }
+        return stripPrivatePrefix(pa) == stripPrivatePrefix(pb)
+    }
+
     private func isDirectChild(_ url: URL) -> Bool {
-        let parent = url.deletingLastPathComponent().resolvingSymlinksInPath().standardizedFileURL
-        return parent == watchFolderURL
+        let parent = url.deletingLastPathComponent()
+        return filesystemEqual(parent, watchFolderURL)
     }
 
     private func entryKind(for url: URL) -> PathEntryKind {
@@ -112,9 +127,9 @@ final class DropBoxFolderWatcher: NSObject, NSFilePresenter {
     }
 
     private func recheck(_ url: URL) -> WebhookClaim? {
-        let standardized = url.standardizedFileURL
+        let standardized = url.resolvingSymlinksInPath().standardizedFileURL
         let path = standardized.path
-        guard isDirectChild(standardized) else { return nil }
+        guard isDirectChild(url) else { return nil }
         guard FileManager.default.fileExists(atPath: path) else {
             dropClaims(forStandardizedPath: path)
             return nil
@@ -148,12 +163,12 @@ final class DropBoxFolderWatcher: NSObject, NSFilePresenter {
     }
 
     private func claimIfReady(_ url: URL) -> WebhookClaim? {
-        let path = url.standardizedFileURL.path
+        let path = url.resolvingSymlinksInPath().standardizedFileURL.path
         var coordinationError: NSError?
         var accessorRan = false
-        coordinator.coordinate(
+        claimCoordinator.coordinate(
             readingItemAt: url,
-            options: [],
+            options: [.withoutChanges],
             error: &coordinationError
         ) { _ in
             accessorRan = true
@@ -181,6 +196,16 @@ final class DropBoxFolderWatcher: NSObject, NSFilePresenter {
         return claim
     }
 
+    private func enqueueClaims(_ batch: [WebhookClaim]) {
+        guard !batch.isEmpty else { return }
+        let names = batch.map(\.fileName).joined(separator: ",")
+        log.writeLine("webhook enqueue files=\(names)")
+        let claims = batch
+        DispatchQueue.main.async {
+            Task { await self.notifier.submit(claims: claims) }
+        }
+    }
+
     private func handleURLs(_ urls: [URL]) {
         pruneClaimsForMissingPaths()
         var batch: [WebhookClaim] = []
@@ -189,12 +214,7 @@ final class DropBoxFolderWatcher: NSObject, NSFilePresenter {
                 batch.append(claim)
             }
         }
-        if !batch.isEmpty {
-            let claims = batch
-            DispatchQueue.main.async {
-                Task { await self.notifier.submit(claims: claims) }
-            }
-        }
+        enqueueClaims(batch)
     }
 
     private func startupScan() {
@@ -233,33 +253,37 @@ final class DropBoxFolderWatcher: NSObject, NSFilePresenter {
                 }
             }
         }
-        if !batch.isEmpty {
-            let claims = batch
-            DispatchQueue.main.async {
-                Task { await self.notifier.submit(claims: claims) }
-            }
-        }
+        enqueueClaims(batch)
     }
 
     // MARK: - NSFilePresenter
 
     func presentedSubitemDidChange(at url: URL) {
+        log.writeLine("presenter callback subitemDidChange path=\(url.path)")
         handleURLs([url])
     }
 
     func presentedSubitemDidAppear(at url: URL) {
+        log.writeLine("presenter callback subitemDidAppear path=\(url.path)")
         handleURLs([url])
     }
 
     func presentedSubitem(at oldURL: URL, didMoveTo newURL: URL) {
+        log.writeLine("presenter callback subitemDidMove path=\(newURL.path)")
         handleURLs([newURL])
     }
 
     func presentedSubitemDidDisappear(at url: URL) {
-        dropClaims(forStandardizedPath: url.standardizedFileURL.path)
+        dropClaims(forStandardizedPath: url.resolvingSymlinksInPath().standardizedFileURL.path)
     }
 
     // MARK: - FSEvents (FR9)
+
+    private func fseventsWatchPaths() -> [String] {
+        var paths = [watchFolderURL.path, watchFolderConfigured.path]
+        var seen = Set<String>()
+        return paths.filter { seen.insert($0).inserted }
+    }
 
     private func startFSEvents() {
         var context = FSEventStreamContext(
@@ -273,6 +297,8 @@ final class DropBoxFolderWatcher: NSObject, NSFilePresenter {
             guard let info else { return }
             let watcher = Unmanaged<DropBoxFolderWatcher>.fromOpaque(info).takeUnretainedValue()
             let pathStrings = (unsafeBitCast(paths, to: NSArray.self) as? [String]) ?? []
+            let summary = pathStrings.joined(separator: ",")
+            watcher.log.writeLine("fsevents callback paths=\(summary)")
             let urls = pathStrings.map { URL(fileURLWithPath: $0) }
             watcher.presentedItemOperationQueue.addOperation {
                 watcher.handleURLs(urls)
@@ -283,7 +309,7 @@ final class DropBoxFolderWatcher: NSObject, NSFilePresenter {
                 | kFSEventStreamCreateFlagUseCFTypes
                 | kFSEventStreamCreateFlagNoDefer
         )
-        let pathsToWatch = [watchFolderURL.path] as CFArray
+        let pathsToWatch = fseventsWatchPaths() as CFArray
         guard let stream = FSEventStreamCreate(
             nil,
             callback,
