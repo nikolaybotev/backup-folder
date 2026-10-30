@@ -3,7 +3,7 @@
 | | |
 |---|---|
 | Derived from | [intent.md](intent.md) (2026-10-30) |
-| Status | Draft 1 |
+| Status | Draft 2 |
 | Stage | 2 · Design |
 
 ## 1. Summary
@@ -81,29 +81,31 @@ FR4. **Logging.** Operational lines go to `[log].path`, opened for append. The p
 
 FR5. **Folder.** `watch_folder` must exist and be a directory or the process exits 2. The process does not create it. At startup, if `ubiquitousItemIsExcludedFromSync` is true on that folder, log an error and keep running. iCloud excludes the folder name `Dropbox`; the watched folder's name is `Drop Box`.
 
-FR6. **What is considered.** Only direct children of the watch folder. Directories are skipped. Symbolic links are not followed and are skipped. Ignored names are skipped. The startup scan passes `.skipsHiddenFiles` and still applies the ignore list. FSEvents does not skip hidden names, so the ignore list is what drops them.
+FR6. **What is considered.** The watch folder is stored as a standardized file URL. A path is a direct child only when `deletingLastPathComponent().standardizedFileURL` equals that URL, the comparison in the brief. A config path and an FSEvents path that differ by a symlink (`/tmp` and `/private/tmp`) still match. Directories are skipped. Symbolic links are not followed and are skipped. Ignored names are skipped. The startup scan passes `.skipsHiddenFiles` and still applies the ignore list. FSEvents does not skip hidden names, so the ignore list is what drops them.
 
-FR7. **Readiness.** For a candidate file, read `isRegularFile`, `isUbiquitousItem`, `ubiquitousItemDownloadingStatus`, and `ubiquitousItemIsDownloading`.
+FR7. **Readiness decision.** This is a pure value. It does not call `FileManager`, it does not call `startDownloadingUbiquitousItem(at:)`, and it does not sleep. Inputs are the ignore result, whether the path is a regular file, a directory, or a symbolic link, whether it is ubiquitous, `ubiquitousItemDownloadingStatus`, and whether a download is in flight.
 
-- Not a regular file: skip.
+- Ignored, not a regular file, a directory, or a symbolic link: skip.
 - Not ubiquitous: ready.
 - Ubiquitous, status `.current`, and `ubiquitousItemIsDownloading` is not true: ready.
-- Any other ubiquitous result, including `.notDownloaded`, `.downloaded`, `.current` while a download is in flight, and a missing status: call `FileManager.startDownloadingUbiquitousItem(at:)`, log a thrown error, and do not treat the file as ready. The next event reads the status again. There is no retry timer.
+- Any other ubiquitous result, including `.notDownloaded`, `.downloaded`, `.current` while a download is in flight, and a missing status: request download.
+
+The watcher applies this value on every event recheck and on the startup scan. A request-download result calls `FileManager.startDownloadingUbiquitousItem(at:)`, logs a thrown error, and does not claim the file. The next event reads the status again. There is no retry timer. Phase 1 owns that call. Phase 0 owns only the value.
 
 `.current` means a local copy exists and is the most up-to-date version known to the device. `.downloaded` means a local copy exists and is stale. `.notDownloaded` means it has not been downloaded. A stale or missing local copy is never a nudge.
 
-FR8. **Claim.** A ready file is claimed only after a coordinated read. Build `NSFileCoordinator` with the watcher as its file presenter and call `coordinate(readingItemAt:options:error:byAccessor:)` with empty options. If the accessor does not run, log the error and do not claim. The claim identity is the triple (standardized path, inode, size in bytes), from `FileManager` attributes `.systemFileNumber` and `.size`. A second claim of the same triple does nothing. The set lives in memory. A path that no longer exists is dropped from the set, including on `presentedSubitemDidDisappear`. A later file at that path is a new claim. A restart starts empty: the startup scan claims every file that is ready then.
+FR8. **Claim.** A ready file is claimed only after a coordinated read. Build `NSFileCoordinator` with the watcher as its file presenter and call `coordinate(readingItemAt:options:error:byAccessor:)` with empty options. If the accessor does not run, log the error and do not claim. The claim identity is the triple (standardized path, inode, size in bytes), from `FileManager` attributes `.systemFileNumber` and `.size`. A second claim of the same triple does nothing. The set lives in memory. A path that no longer exists is dropped from the set. `presentedSubitemDidDisappear(at:)` drops claim keys for that path and does not nudge. A later file at that path is a new claim. A restart starts empty: the startup scan claims every file that is ready then.
 
-FR9. **Triggers.** Both of these are on, and every callback only rechecks FR7:
+FR9. **Triggers.** Both of these are on:
 
-- An `NSFilePresenter` for the watch folder, on a serial `OperationQueue` named `drop-box-watcher`. Implement `presentedSubitemDidChange(at:)`, `presentedSubitemDidAppear(at:)`, and `presentedSubitem(_:didMoveTo:)`. The move callback rechecks the new URL.
-- An FSEvents stream on the watch folder, created with `FSEventStreamCreate`, `sinceWhen` of `kFSEventStreamEventIdSinceNow`, latency `0`, and flags `kFSEventStreamCreateFlagFileEvents`, `kFSEventStreamCreateFlagUseCFTypes`, and `kFSEventStreamCreateFlagNoDefer`. Schedule it with `FSEventStreamSetDispatchQueue` on a queue named `drop-box-watcher.fsevents`. The callback hops onto the presenter queue before it touches watcher state. Do not filter on event flags.
+- An `NSFilePresenter` for the watch folder, on a serial `OperationQueue` named `drop-box-watcher`. Implement `presentedSubitemDidChange(at:)`, `presentedSubitemDidAppear(at:)`, `presentedSubitem(_:didMoveTo:)`, and `presentedSubitemDidDisappear(at:)`. The first three recheck FR7. The move callback rechecks the new URL. `presentedSubitemDidDisappear(at:)` only removes claim keys for that path. It does not nudge and it does not request a download.
+- An FSEvents stream on the watch folder, created with `FSEventStreamCreate`, `sinceWhen` of `kFSEventStreamEventIdSinceNow`, latency `0`, and flags `kFSEventStreamCreateFlagFileEvents`, `kFSEventStreamCreateFlagUseCFTypes`, and `kFSEventStreamCreateFlagNoDefer`. Schedule it with `FSEventStreamSetDispatchQueue` on a queue named `drop-box-watcher.fsevents`. The callback hops onto the presenter queue before it touches watcher state. Do not filter on event flags. Every path event rechecks FR7.
 
 Start order: add the presenter, start the stream, then run the startup scan on the presenter queue. `main` holds the watcher for the process lifetime and calls `dispatchMain()`. If stream creation fails, log an error and keep the presenter and the scan. The code does not choose a trigger from a list of flags. Roger's later measurement records which callbacks fired; it does not change this requirement.
 
-FR10. **Startup scan.** Enumerate the folder root only. Claim every ready child. Submit one batch for all of them.
+FR10. **Startup scan.** Enumerate the folder root only, direct children per FR6. Apply the FR7 decision to each child. A request-download child gets `startDownloadingUbiquitousItem(at:)` and is not claimed. Claim every ready child. Submit one batch for all of them.
 
-FR11. **Notifier.** `actor WebhookNotifier` is the only webhook speaker. `submit` merges claims into a pending set and returns without waiting for HTTP. At most one POST or one retry loop runs at a time.
+FR11. **Notifier.** `actor WebhookNotifier` is the only webhook speaker. `WebhookHTTP` is its production transport and the only type that uses `URLSession`. The watcher and `main` enqueue only through `WebhookNotifier`. `submit` merges claims into a pending set and returns without waiting for HTTP. At most one POST or one retry loop runs at a time.
 
 - The body is a JSON object with `event_time` and `files`. `event_time` is UTC ISO-8601 from `ISO8601DateFormatter` with `.withInternetDateTime`, taken when that request is built (`1970-01-01T00:00:00Z` shape). `files` is the basenames of the merged claims, first-seen order, no duplicates. No other fields.
 - The request is `POST`, `Content-Type: application/json`, and `Authorization: Bearer <key>`.
@@ -116,7 +118,7 @@ FR12. **LaunchAgent template.** Label `com.nikolay.drop-box-watcher`. `RunAtLoad
 
 FR13. **Install notes.** The README tells a person to put the binary at `$HOME/bin/drop-box-watcher`, the real config at `$HOME/.config/drop-box-watcher/config.toml` with mode `0600`, and the plist at `$HOME/Library/LaunchAgents/com.nikolay.drop-box-watcher.plist` with placeholders replaced by absolute paths; to load it with `launchctl bootstrap gui/$(id -u)`; and that the first run can prompt for Desktop access. The config directory is outside iCloud Desktop and Documents and outside `~/Backups`. The notes say agents and CI do not perform these steps, and that a merge does not publish a binary. Nikolay tags when a release should exist.
 
-FR14. **Tests and CI.** Darwin-free tests cover the parser, the mode check, ignore matching, the readiness decision, the notifier, and log redaction. They run on the Linux toolchain and on the macOS runner. The macOS job also builds the binary, checks exit 2, and runs a local non-iCloud smoke: a file dropped in a temp folder produces one nudge, the file bytes stay the same, an ignored name produces none, and a size change produces another nudge. That harness may poll for up to 10 seconds. The product code on the readiness path does not sleep. The existing `macos-smoke` line stays `macos-smoke: build OK, clonefile probe OK, snapshot OK, COW OK`. CodeQL's manual build compiles this binary as well as `backup-folder`. The release workflow uploads both binaries on a `v*` tag. The branch-protection script is left alone.
+FR14. **Tests and CI.** Darwin-free tests cover the parser, the mode check, ignore matching, the readiness decision, the notifier, and log redaction. They run on the Linux toolchain and on the macOS runner. The macOS job also builds the binary, checks exit 2, and runs a local non-iCloud smoke: a file dropped in a temp folder produces one nudge, the file bytes stay the same, an ignored name produces none, and a size change produces another nudge. That harness may poll for up to 10 seconds. The product code on the readiness path does not sleep. A macOS smoke that never sees the create event does not pass. The existing `macos-smoke` line stays `macos-smoke: build OK, clonefile probe OK, snapshot OK, COW OK`. CodeQL's manual build compiles this binary as well as `backup-folder`. The release workflow uploads both binaries on a `v*` tag.
 
 ## 6. Acceptance criteria
 
@@ -124,9 +126,9 @@ AC1. `bash tests/linux-unit.sh` exits 0. The parser tests reject an unknown key,
 
 AC2. The same script's ignore tests match `.DS_Store`, a dotfile, and names ending in `.icloud`, `.download`, `.crdownload`, and `.part`, and they do not match `note.txt`.
 
-AC3. The same script's readiness table matches FR7 for a local file, `.current` without a download, `.current` while downloading, `.downloaded`, `.notDownloaded`, a directory, and a symlink.
+AC3. The same script's readiness table matches FR7 for a local file, `.current` without a download, `.current` while downloading, `.downloaded`, `.notDownloaded`, a directory, and a symlink. The not-ready ubiquitous rows are the request-download value. `Readiness.swift` does not mention `startDownloadingUbiquitousItem`.
 
-AC4. The same script drives `WebhookNotifier` with a fake transport and a fake clock: one in-flight POST, a merge of a second file into the follow-up POST, a non-2xx wait of 1s then 2s, a submit during the wait that sends immediately, a 2xx that clears the sent claims, a body of `event_time` plus `files`, and an `Authorization` value of `Bearer` plus the key. The log text does not contain the key.
+AC4. The same script drives `WebhookNotifier` with a fake transport and a fake clock: one in-flight POST, a merge of a second file into the follow-up POST, a non-2xx wait of 1s then 2s, a submit during the wait that sends immediately, a 2xx that clears the sent claims, a body of `event_time` plus `files`, and an `Authorization` value of `Bearer` plus the key. After the 1s and 2s waits, a submit during the next wait sends immediately, and a failure of that send records a 4s wait, the next step, rather than starting over at 1s. The log text does not contain the key.
 
 AC5. `Readiness.swift` and `Watcher.swift` contain no sleep call. `bash tests/linux-unit.sh` fails if they do. `Watcher.swift` is scanned once it exists.
 
@@ -150,7 +152,7 @@ AC11. The iCloud flag measurement on Roger is not a CI check. The implementation
 
 **D3 — TOML config, no Keychain.** URL, secret, folder, ignore list, and log path come from one TOML file the plist passes in. The real file stays outside the repo, outside iCloud Desktop and Documents, and outside `~/Backups`, at `~/.config/drop-box-watcher/config.toml`, mode `0600`. Nikolay rejected Keychain. The subset in FR3 is the whole language the parser implements, so a typo cannot silently drop the secret. Checked on the Linux toolchain on 2026-10-30: `FileManager` posix permissions report `0600` after that mode is set.
 
-**D4 — Notify only, plus one download request.** The process never moves, renames, edits, or deletes a file, and it does not create the watch folder. `startDownloadingUbiquitousItem(at:)` is the one iCloud request, and it is how a placeholder gets contents. Apple's document for that method says it starts a download when the item is not local and synchronizes a local item with the cloud. Checked 2026-10-30 from Apple's documentation JSON.
+**D4 — Notify only, plus one download request.** The process never moves, renames, edits, or deletes a file, and it does not create the watch folder. `startDownloadingUbiquitousItem(at:)` is the one iCloud request, and it is how a placeholder gets contents. The watcher makes that call when the pure FR7 value says request download, on a later event and on the startup scan. Apple's document for that method says it starts a download when the item is not local and synchronizes a local item with the cloud. Checked 2026-10-30 from Apple's documentation JSON.
 
 **D5 — No readiness timer.** Nikolay closed this. FSEvents latency is `0`. Apple's `FSEventStreamCreate` document says latency is the number of seconds the service waits after a kernel event before the callback, so zero adds no wait. The stream also sets `kFSEventStreamCreateFlagNoDefer`, which the brief requires with that latency. The only sleeps are inside `WebhookNotifier`, and only after a failed delivery (D10). A test harness may poll; the product readiness path does not.
 
@@ -174,7 +176,7 @@ AC11. The iCloud flag measurement on Roger is not a CI check. The implementation
 
 **D15 — Tests split by what Linux can run.** Config, readiness decisions, the notifier, and logging import Foundation only, plus `FoundationNetworking` for the HTTP type. They are the Linux job. `URLUbiquitousItemDownloadingStatus` is not in the Linux Foundation module; that check was compiled here on 2026-10-30 and failed to resolve the symbol. The watcher file that touches FSEvents, the presenter, and that status type is compiled on macOS. `swiftc -parse` is not a typecheck of that file. Swift 6.4.1 on this Linux image compiled an actor and an async `URLSession` call on 2026-10-30.
 
-**D16 — CI shape.** The required macOS check keeps the snapshot smoke and gains the watcher build and the Darwin-free tests. A new `linux` job runs only the Darwin-free script, after installing the Swift 6.4 toolchain the way the repo already pins it, because GitHub's Ubuntu image does not ship `swiftc`. `.github/scripts/protect-main-branch.sh` is not edited: its PUT replaces the ruleset payload, and the ruleset Nikolay already has is `26167970`. The phase report names the `linux` job so he can require it in the UI if he wants. CodeQL stays one Swift job and its build line compiles both binaries. The release workflow uploads both on a tag and is not run by these phases.
+**D16 — CI shape.** The required macOS check keeps the snapshot smoke and gains the watcher build and the Darwin-free tests. A new `linux` job runs only the Darwin-free script. It follows `.cursor/install.sh` through `mise install` and `mise reshim` so Swift 6.4 is on `PATH`. `ubuntu-latest` has neither `mise` nor `swiftc`. The job does not run the skills installer at the end of that script. The `macos` job keeps `timeout-minutes: 20`. CodeQL stays one Swift job and its build line compiles both binaries. The release workflow uploads both on a tag and is not run by these phases. Branch protection and the CodeQL sentence in `AGENTS.md` are outside this intent.
 
 **D17 — Loopback HTTP.** The real webhook is `https`, because the value is a bearer secret. `http://127.0.0.1` and `http://localhost` with an explicit port are accepted so the macOS smoke can receive a POST without a secret leaving the machine.
 
