@@ -55,6 +55,7 @@ jobs:
           build-mode: manual
 
       - name: Build for CodeQL
+        timeout-minutes: 7
         env:
           SWIFTC_OPT: -Onone
         run: |
@@ -73,37 +74,81 @@ jobs:
             drop-box-watcher/main.swift
           echo "traced drop-box-watcher end $(date -u +%H:%M:%S)"
 
-          echo "=== CodeQL extractor log sample ==="
-          db_root=""
-          if [ -d "$RUNNER_TEMP/codeql_databases" ]; then
-            db_root="$RUNNER_TEMP/codeql_databases"
+      - name: CodeQL extraction diagnostics
+        if: always()
+        run: |
+          set +e
+          echo "=== CodeQL extraction diagnostics ==="
+          echo "RUNNER_TEMP=${RUNNER_TEMP}"
+
+          echo ""
+          echo "CodeQL database / log directories:"
+          for d in \
+            "${RUNNER_TEMP}/codeql_databases" \
+            $(find "${RUNNER_TEMP}" -maxdepth 5 -type d \( -name 'log' -o -name 'logs' \) 2>/dev/null | grep -i codeql || true) \
+            $(find "${RUNNER_TEMP}" -maxdepth 4 -type d -name 'codeql_databases' 2>/dev/null || true); do
+            [ -d "$d" ] || continue
+            echo "  $d"
+            find "$d" -maxdepth 2 -type d 2>/dev/null | head -15
+          done
+
+          echo ""
+          echo "*.log under RUNNER_TEMP paths containing codeql (first 25 files, console shows <=80 lines each):"
+          log_list="$(mktemp)"
+          find "${RUNNER_TEMP}" -path '*codeql*' -name '*.log' 2>/dev/null | head -25 > "$log_list"
+          if [ ! -s "$log_list" ]; then
+            echo "  (none found)"
           else
-            db_root="$(find "$RUNNER_TEMP" -maxdepth 3 -type d -name 'codeql_databases' 2>/dev/null | head -1 || true)"
+            while IFS= read -r f; do
+              lines="$(wc -l < "$f" 2>/dev/null | tr -d ' ')"
+              echo "--- ${f} (${lines:-?} lines) ---"
+              head -80 "$f" 2>/dev/null
+            done < "$log_list"
           fi
-          if [ -z "$db_root" ] || [ ! -d "$db_root" ]; then
-            echo "No codeql_databases directory under RUNNER_TEMP"
-            exit 0
+
+          echo ""
+          echo ".trap files grouped by parent directory name (top 40):"
+          trap_tmp="$(mktemp)"
+          find "${RUNNER_TEMP}" -path '*codeql*' -name '*.trap' 2>/dev/null \
+            | sed -E 's#/([^/]+)/[^/]+\.trap$#/\1#' \
+            | sort | uniq -c | sort -rn | head -40 > "$trap_tmp"
+          if [ ! -s "$trap_tmp" ]; then
+            echo "  (none found)"
+          else
+            cat "$trap_tmp"
           fi
-          found=0
+
+          echo ""
+          echo "SDK module callouts (Foundation, Darwin, Dispatch):"
+          for mod in Foundation Darwin Dispatch; do
+            traps="$(find "${RUNNER_TEMP}" -path '*codeql*' -name '*.trap' 2>/dev/null | grep -i "/${mod}/" | wc -l | tr -d ' ')"
+            logs="$(find "${RUNNER_TEMP}" -path '*codeql*' -name '*.log' 2>/dev/null | xargs grep -l "$mod" 2>/dev/null | wc -l | tr -d ' ')"
+            echo "  ${mod}: ${traps} .trap paths under */${mod}/, ${logs} .log files mentioning name"
+          done
+
+          staging="${RUNNER_TEMP}/codeql-diagnostic-artifact"
+          rm -rf "$staging"
+          mkdir -p "$staging/logs" "$staging/trap-index"
           while IFS= read -r f; do
-            found=1
-            lines="$(wc -l < "$f" | tr -d ' ')"
-            echo "--- ${f} (${lines} lines) ---"
-            if [ "$lines" -gt 80 ]; then
-              echo "Repeated module / interface tokens (top 30 by count):"
-              grep -iE 'module|swiftinterface|extract' "$f" \
-                | sed -E 's#^.*/([^/[:space:]]+(\.swiftinterface|\.swift)?).*#\1#' \
-                | sort | uniq -c | sort -rn | head -30 || true
-              echo "First 40 lines:"
-              head -40 "$f"
+            base="$(basename "$f")"
+            lines="$(wc -l < "$f" 2>/dev/null | tr -d ' ')"
+            if [ "${lines:-0}" -gt 200 ]; then
+              head -200 "$f" > "$staging/logs/${base}.head"
             else
-              cat "$f"
+              cp "$f" "$staging/logs/${base}" 2>/dev/null
             fi
-          done < <(find "$db_root" -type f \( -iname '*extract*' -o -iname '*swiftinterface*' -o -iname '*module*' \) 2>/dev/null | head -15)
-          if [ "$found" -eq 0 ]; then
-            echo "No extractor logs matching *extract*, *swiftinterface*, or *module* under ${db_root}"
-            find "$db_root" -maxdepth 5 -type f 2>/dev/null | head -25
-          fi
+          done < "$log_list"
+          cp "$trap_tmp" "$staging/trap-index/by-directory.txt" 2>/dev/null
+          find "${RUNNER_TEMP}" -path '*codeql*' -name '*.trap' 2>/dev/null | head -500 > "$staging/trap-index/trap-paths-sample.txt"
+          echo "CODEQL_DIAGNOSTIC_STAGING=${staging}" >> "${GITHUB_ENV}"
+
+      - name: Upload CodeQL diagnostic logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: codeql-extraction-diagnostics
+          path: ${{ runner.temp }}/codeql-diagnostic-artifact
+          if-no-files-found: ignore
 
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@v4
