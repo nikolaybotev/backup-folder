@@ -20,7 +20,7 @@ jobs:
       - name: Check out
         uses: actions/checkout@v4
       - name: Build backup-folder
-        run: swiftc -O -o backup-folder backup-folder.swift Retention.swift
+        run: bash tests/build-backup-folder.sh
       - name: Build drop-box-watcher
         if: hashFiles('drop-box-watcher.swift') != ''
         run: swiftc -O -o drop-box-watcher drop-box-watcher.swift

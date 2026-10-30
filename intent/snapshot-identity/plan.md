@@ -41,6 +41,7 @@ DoD: local `swiftc -o retention-tests Retention.swift tests/retention-tests.swif
 - **`linux` job already present.** PR #12 merged before this phase; step 3’s “add a `linux` job” was satisfied by the existing `ubuntu-latest` job running `tests/linux-unit.sh`. This phase adds a **Retention unit tests** step on that job and raises its timeout from 20 to 30 minutes.
 - **`AGENTS.md` CodeQL bullet.** Left unchanged (CodeQL already documented on `main`); only the macOS build line and the `linux` job description were updated per coordinator instruction.
 - **Names and lock unchanged.** Phase 0 keeps `yyyy-MM-dd_HHmm` names and does not add `.backup-folder.lock` (phase 1).
+- **Multi-file `swiftc` entry point.** `swiftc backup-folder.swift Retention.swift` fails because only `main.swift` may contain top-level executable code. macOS smoke, release, and CodeQL use `tests/build-backup-folder.sh`, which compiles a temp dir with `backup-folder.swift` symlinked as `main.swift` next to `Retention.swift`.
 
 ## Phase 1 — Unique names, lock, and reap
 

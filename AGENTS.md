@@ -4,7 +4,7 @@ Small macOS CLI that snapshots a folder with APFS copy-on-write clones (`backup-
 
 ## Commands
 
-- Build (macOS): `swiftc -O -o backup-folder backup-folder.swift Retention.swift` (healthy: `backup-folder` binary in the repo root).
+- Build (macOS): `bash tests/build-backup-folder.sh` (healthy: `backup-folder` binary in the repo root). Symlinks `backup-folder.swift` as `main.swift` beside `Retention.swift` because multi-file `swiftc` only allows top-level code in `main.swift`.
 - Parse-only (Linux cloud VM): `swiftc -parse backup-folder.swift` (healthy: exit 0). Full type-check and link need Darwin; Linux cannot build this binary while the tool imports `Darwin` and calls `clonefile`.
 - Darwin-free unit tests (Linux cloud VM and CI): `bash tests/linux-unit.sh` (healthy: line `linux-unit: OK`). Covers `drop-box-watcher` config, readiness, logging, and webhook notifier logic.
 - CI smoke (macOS): `bash tests/macos-smoke.sh` (healthy: line `macos-smoke: build OK, clonefile probe OK, snapshot OK, COW OK`).
@@ -36,7 +36,7 @@ Small macOS CLI that snapshots a folder with APFS copy-on-write clones (`backup-
 ## Things agents get wrong
 
 - Do not run `swift build`; there is no `Package.swift`.
-- Do not add a Linux CI job that type-checks or links `backup-folder.swift` until more Darwin-free logic is extracted; the `linux` job runs only `tests/linux-unit.sh`.
+- Do not add a Linux CI job that type-checks or links `backup-folder.swift`; the existing `linux` job runs `tests/linux-unit.sh` and the `Retention.swift` unit tests only.
 - Do not claim a GitHub release was published unless a `v*` tag push actually ran `release.yml`.
 - Do not create or change branch protection rulesets in GitHub; Roger maintains them with `gh`.
 - Cloud Agents on Linux can parse and edit the source but cannot execute `clonefile`, APFS clones, or `launchctl`.
