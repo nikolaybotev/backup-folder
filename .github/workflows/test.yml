@@ -30,6 +30,8 @@ jobs:
         run: bash tests/install-tools-test.sh
       - name: Ensure backup dirs script test
         run: bash tests/ensure-backup-dirs-test.sh
+      - name: Setup and restore docs check
+        run: bash tests/setup-docs.sh
 
   linux:
     runs-on: ubuntu-latest
