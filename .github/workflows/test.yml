@@ -24,6 +24,8 @@ jobs:
         run: bash tests/macos-smoke.sh
       - name: Secret and template scan
         run: bash tests/no-secrets.sh
+      - name: Release workflow static check
+        run: bash tests/release-workflow.sh
 
   linux:
     runs-on: ubuntu-latest
