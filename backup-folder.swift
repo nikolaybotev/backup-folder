@@ -18,13 +18,18 @@ let logPath = dest + "/backup.log"
 let fm = FileManager.default
 
 func log(_ s: String) {
-    let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd HH:mm:ss"
+    let f = DateFormatter(); f.dateFormat = "yyyy-MM-dd HH:mm:ss"; f.locale = Locale(identifier: "en_US_POSIX")
     let line = "\(f.string(from: Date())) \(s)\n"
+    FileHandle.standardError.write(line.data(using: .utf8)!)
     if let h = FileHandle(forWritingAtPath: logPath) { h.seekToEndOfFile(); h.write(line.data(using: .utf8)!); h.closeFile() }
     else { try? line.write(toFile: logPath, atomically: true, encoding: .utf8) }
 }
 
-try? fm.createDirectory(atPath: dest, withIntermediateDirectories: true)
+do {
+    try fm.createDirectory(atPath: dest, withIntermediateDirectories: true)
+} catch {
+    FileHandle.standardError.write("ERROR: cannot create \(dest): \(error)\n".data(using: .utf8)!); exit(1)
+}
 
 guard (try? fm.contentsOfDirectory(atPath: src)) != nil else {
     log("ERROR: cannot read \(src) (Full Disk Access?)"); exit(1)
@@ -38,6 +43,7 @@ try? fm.removeItem(atPath: tmp)
 // Clone file by file (whole-directory clonefile is refused inside iCloud-managed folders).
 // Each file is an APFS copy-on-write clone; falls back to a normal copy if cloning fails.
 var failures = 0
+var fallbacks = 0
 func cloneTree(_ s: String, _ d: String) {
     do { try fm.createDirectory(atPath: d, withIntermediateDirectories: true) } catch { log("ERROR: mkdir \(d): \(error)"); failures += 1; return }
     guard let items = try? fm.contentsOfDirectory(atPath: s) else { log("ERROR: list \(s)"); failures += 1; return }
@@ -47,7 +53,12 @@ func cloneTree(_ s: String, _ d: String) {
         guard fm.fileExists(atPath: sp, isDirectory: &isDir) else { continue }
         if isDir.boolValue { cloneTree(sp, dp); continue }
         if clonefile(sp, dp, UInt32(CLONE_NOFOLLOW)) != 0 {
-            do { try fm.copyItem(atPath: sp, toPath: dp) } catch { log("ERROR: copy \(sp): \(error)"); failures += 1 }
+            let err = errno
+            do {
+                try fm.copyItem(atPath: sp, toPath: dp)
+                log("WARNING: clonefile failed for \(sp) (errno \(err)); full copy")
+                fallbacks += 1
+            } catch { log("ERROR: copy \(sp): \(error)"); failures += 1 }
         }
     }
 }
@@ -56,7 +67,7 @@ if failures > 0 { log("WARNING: \(failures) item(s) failed in \(ts)") }
 do { try fm.moveItem(atPath: tmp, toPath: final) } catch { log("ERROR: rename failed: \(error)"); exit(1) }
 var count = 0
 if let e = fm.enumerator(atPath: final) { while let p = e.nextObject() as? String { var d: ObjCBool = false; if fm.fileExists(atPath: final + "/" + p, isDirectory: &d), !d.boolValue { count += 1 } } }
-log("OK snapshot \(ts) (\(count) files)")
+log("OK snapshot \(ts) (\(count) files, \(fallbacks) full copies)")
 
 // Prune
 let now = Date()
