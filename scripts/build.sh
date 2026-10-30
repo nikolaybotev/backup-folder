@@ -36,7 +36,8 @@ enum BuildStampInfo {
 }
 SWIFT
 
-swift build -c release --triple arm64-apple-macos12.0
+export MACOSX_DEPLOYMENT_TARGET=12.0
+swift build -c release
 
 cp .build/release/backup-folder "$ROOT/backup-folder"
 cp .build/release/drop-box-watcher "$ROOT/drop-box-watcher"
