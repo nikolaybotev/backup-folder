@@ -1,4 +1,12 @@
 import Foundation
+import BuildStamp
+
+let watcherArgs = CommandLine.arguments
+if watcherArgs.contains("--version") {
+    let verbose = watcherArgs.contains("--verbose")
+    print(BuildStamp.versionLine(productName: "drop-box-watcher", verbose: verbose))
+    exit(0)
+}
 
 /// Keeps the watcher alive for the process lifetime (FR9 / plan Phase 1 step 2).
 enum DropBoxWatcherProcess {

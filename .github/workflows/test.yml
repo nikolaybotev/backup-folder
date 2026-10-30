@@ -20,6 +20,57 @@ jobs:
     steps:
       - name: Check out
         uses: actions/checkout@v4
+      - name: Build entry and product binaries
+        run: |
+          set -euo pipefail
+          export VERSION=v0.0.0
+          bash scripts/build.sh
+          codesign -dv ./backup-folder 2>&1 | grep -q 'Signature=adhoc'
+          if [[ -x ./drop-box-watcher/drop-box-watcher ]]; then
+            watcher_bin=./drop-box-watcher/drop-box-watcher
+          else
+            watcher_bin=./drop-box-watcher
+          fi
+          codesign -dv "$watcher_bin" 2>&1 | grep -q 'Signature=adhoc'
+          export VERSION=v9.9.9
+          bash scripts/build.sh
+          head_sha="$(git rev-parse HEAD)"
+          short_sha="${head_sha:0:7}"
+          ts="$(date -u +%Y-%m-%dT%H:%MZ)"
+          want_bf="backup-folder v9.9.9 (${short_sha}, built ${ts})"
+          got_bf="$(./backup-folder --version)"
+          if [[ "$got_bf" != "$want_bf" ]]; then
+            echo "backup-folder --version mismatch" >&2
+            echo "  want: $want_bf" >&2
+            echo "  got:  $got_bf" >&2
+            exit 1
+          fi
+          want_bf_v="backup-folder v9.9.9 (${head_sha}, built ${ts})"
+          got_bf_v="$(./backup-folder --version --verbose)"
+          if [[ "$got_bf_v" != "$want_bf_v" ]]; then
+            echo "backup-folder --version --verbose mismatch" >&2
+            echo "  want: $want_bf_v" >&2
+            echo "  got:  $got_bf_v" >&2
+            exit 1
+          fi
+          want_w="drop-box-watcher v9.9.9 (${short_sha}, built ${ts})"
+          got_w="$("$watcher_bin" --version)"
+          if [[ "$got_w" != "$want_w" ]]; then
+            echo "drop-box-watcher --version mismatch" >&2
+            echo "  want: $want_w" >&2
+            echo "  got:  $got_w" >&2
+            exit 1
+          fi
+          want_w_v="drop-box-watcher v9.9.9 (${head_sha}, built ${ts})"
+          got_w_v="$("$watcher_bin" --version --verbose)"
+          if [[ "$got_w_v" != "$want_w_v" ]]; then
+            echo "drop-box-watcher --version --verbose mismatch" >&2
+            echo "  want: $want_w_v" >&2
+            echo "  got:  $got_w_v" >&2
+            exit 1
+          fi
+      - name: Build entry static check
+        run: bash tests/build-entry-test.sh
       - name: Build and APFS smoke test
         run: bash tests/macos-smoke.sh
       - name: Drop Box watcher macOS smoke
@@ -43,6 +94,8 @@ jobs:
     steps:
       - name: Check out
         uses: actions/checkout@v4
+      - name: Build entry static check
+        run: bash tests/build-entry-test.sh
       - name: Install Swift toolchain
         run: |
           set -euo pipefail
@@ -66,12 +119,12 @@ jobs:
           set -euo pipefail
           export PATH="${HOME}/.local/bin:${PATH}"
           eval "$(mise activate bash)"
-          swiftc -O -o retention-tests Retention.swift tests/retention-tests.swift
+          swiftc -O -o retention-tests Sources/backup-folder/Retention.swift tests/retention-tests.swift
           ./retention-tests
       - name: Path containment unit tests
         run: |
           set -euo pipefail
           export PATH="${HOME}/.local/bin:${PATH}"
           eval "$(mise activate bash)"
-          swiftc -o path-tests PathCheck.swift tests/path-tests.swift
+          swiftc -o path-tests Sources/backup-folder/PathCheck.swift tests/path-tests.swift
           ./path-tests
