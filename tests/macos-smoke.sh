@@ -243,14 +243,14 @@ if [[ ! -L "$link_entry" ]]; then
   ls -la "$LINK_DEST/$link_snap" >&2
   exit 1
 fi
-if [[ "$(readlink "$link_entry")" != "$LINK_SRC/realdir" ]]; then
+if [[ "$(readlink "$link_entry")" != "$LINK_HIDDEN/realdir" ]]; then
   echo "Symlink target mismatch for $link_entry" >&2
-  printf '  expected: %q\n' "$LINK_SRC/realdir" >&2
+  printf '  expected: %q\n' "$LINK_HIDDEN/realdir" >&2
   printf '  got:      %q\n' "$(readlink "$link_entry")" >&2
   exit 1
 fi
 if [[ -d "$link_entry" && ! -L "$link_entry" ]] \
-  || { [[ -f "$LINK_DEST/$link_snap/linkdir/inside.txt" || -d "$LINK_DEST/$link_snap/linkdir/inside.txt" ]] && [[ ! -L "$link_entry" ]]; }; then
+  || find "$LINK_DEST/$link_snap" -name inside.txt -type f -print 2>/dev/null | grep -q .; then
   echo "Snapshot must not walk directory symlink target tree" >&2
   find "$LINK_DEST/$link_snap" >&2 || true
   exit 1
