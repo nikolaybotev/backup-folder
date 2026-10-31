@@ -1,5 +1,8 @@
 import Foundation
 import BuildStamp
+#if canImport(ToolConfig)
+import ToolConfig
+#endif
 
 let watcherArgs = CommandLine.arguments
 if watcherArgs.contains("--version") {

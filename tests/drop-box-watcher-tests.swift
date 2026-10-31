@@ -20,6 +20,7 @@ private func writeFile(path: String, contents: String, mode: Int) throws {
 struct DropBoxWatcherTests {
     static func main() async {
         testConfigParser()
+        testTomlSubset()
         testConfigPermissions()
         testIgnorePatterns()
         testReadinessTable()
@@ -147,11 +148,183 @@ struct DropBoxWatcherTests {
         if case .success = parseConfigTOML(literalString) { fail("literal string") }
     }
 
+    static func testTomlSubset() {
+        switch parseTomlSubset("count = -12\nconcurrency = 0\n") {
+        case .success(let root):
+            guard case .integer(-12) = root["count"]?.content else { fail("negative integer") }
+            guard case .integer(0) = root["concurrency"]?.content else { fail("zero integer") }
+            assert(root["count"]?.line == 1, "integer line")
+        case .failure(let err):
+            fail("integer parse \(err.message)")
+        }
+
+        let tables = """
+        [[folder]]
+        source = "/ABS/SOURCE"
+        dest = "/ABS/BACKUP#DIR"
+        [[folder]]
+        source = "/ABS/SOURCE-2"
+        dest = "/ABS/BACKUP-DIR-2"
+        """
+        switch parseTomlSubset(tables) {
+        case .success(let root):
+            guard case .arrayOfTables(let rows) = root["folder"]?.content else { fail("array of tables kind") }
+            assert(rows.count == 2, "two folder tables")
+            guard case .string("/ABS/SOURCE") = rows[0]["source"]?.content else { fail("folder source") }
+            guard case .string("/ABS/BACKUP#DIR") = rows[0]["dest"]?.content else { fail("hash inside string") }
+            guard case .string("/ABS/BACKUP-DIR-2") = rows[1]["dest"]?.content else { fail("second dest") }
+        case .failure(let err):
+            fail("array of tables \(err.message)")
+        }
+
+        switch parseTomlSubset("note = \"a\\\"b\"\nslash = \"a\\\\b\"\n") {
+        case .success(let root):
+            guard case .string("a\"b") = root["note"]?.content else { fail("escaped quote") }
+            guard case .string("a\\b") = root["slash"]?.content else { fail("escaped backslash") }
+        case .failure(let err):
+            fail("escapes \(err.message)")
+        }
+
+        switch parseTomlSubset("ratio = 1.5\n") {
+        case .failure(let err):
+            assert(err.message.contains("line 1"), "float line number")
+            assert(!err.message.contains("1.5"), "float value not in error")
+        case .success:
+            fail("float")
+        }
+
+        let rejected = [
+            "flag = true",
+            "flag = false",
+            "name = 'literal'",
+            "point = { x = 1 }",
+            "when = 1979-05-27",
+            "a.b = 1",
+            "n = +3",
+            "n = 1_000",
+            "n = 1.0",
+        ]
+        for sample in rejected {
+            switch parseTomlSubset(sample + "\n") {
+            case .success:
+                fail("parser accepted a rejected form")
+            case .failure(let err):
+                assert(err.message.contains("line 1"), "rejected form names the line")
+                if let eq = sample.firstIndex(of: "=") {
+                    let value = sample[sample.index(after: eq)...].trimmingCharacters(in: .whitespaces)
+                    if value.count >= 3 {
+                        assert(!err.message.contains(value), "error echoes value")
+                    }
+                }
+            }
+        }
+        let multiline = "name = \"\"\"hello\"\"\"\n"
+        if case .success = parseTomlSubset(multiline) { fail("multiline string") }
+
+        let sentinel = "SENTINEL-VALUE-NOT-A-KEY"
+        switch parseTomlSubset("k = \"\(sentinel)\"\nk = \"\(sentinel)\"\n") {
+        case .failure(let err):
+            assert(err.message.contains("line 2"), "duplicate line")
+            assert(!err.message.contains(sentinel), "duplicate error echoes value")
+        case .success:
+            fail("duplicate key")
+        }
+        switch parseTomlSubset("k = \"\(sentinel)\\q\"\n") {
+        case .failure(let err):
+            assert(!err.message.contains(sentinel), "escape error echoes value")
+            assert(err.message.contains("line 1"), "escape line")
+        case .success:
+            fail("bad escape")
+        }
+
+        let withInteger = """
+        watch_folder = "/tmp/watch"
+        count = 2
+        [webhook]
+        url = "https://example.invalid/routine"
+        key = "\(sentinel)"
+        [behavior]
+        ignore = []
+        [log]
+        path = "/tmp/log"
+        """
+        switch parseTomlSubset(withInteger) {
+        case .success(let root):
+            guard case .integer(2) = root["count"]?.content else { fail("count integer in document") }
+        case .failure(let err):
+            fail("document integer \(err.message)")
+        }
+        switch parseConfigTOML(withInteger) {
+        case .success:
+            fail("watcher integer value")
+        case .failure(let err):
+            assert(!String(describing: err).contains(sentinel), "watcher integer error echoes key")
+        }
+
+        let innerInteger = """
+        watch_folder = "/tmp/watch"
+        [webhook]
+        url = "https://example.invalid/routine"
+        key = "k"
+        retries = 4
+        [behavior]
+        ignore = []
+        [log]
+        path = "/tmp/log"
+        """
+        if case .success = parseConfigTOML(innerInteger) { fail("integer inside webhook table") }
+
+        let withTables = """
+        watch_folder = "/tmp/watch"
+        [[folder]]
+        source = "/ABS/SOURCE"
+        dest = "/ABS/BACKUP-DIR"
+        [webhook]
+        url = "https://example.invalid/routine"
+        key = "\(sentinel)"
+        [behavior]
+        ignore = []
+        [log]
+        path = "/tmp/log"
+        """
+        switch parseTomlSubset(withTables) {
+        case .failure(let err):
+            fail("parser rejected array of tables \(err.message)")
+        case .success:
+            break
+        }
+        switch parseConfigTOML(withTables) {
+        case .success:
+            fail("watcher array of tables")
+        case .failure(let err):
+            assert(!String(describing: err).contains(sentinel), "watcher table array error echoes key")
+        }
+
+        let hashKey = """
+        watch_folder = "/tmp/watch"
+        [webhook]
+        url = "https://example.invalid/routine"
+        key = "abc#def"
+        [behavior]
+        ignore = []
+        [log]
+        path = "/tmp/log"
+        """
+        switch parseConfigTOML(hashKey) {
+        case .success(let cfg):
+            assert(cfg.webhookKey == "abc#def", "hash inside webhook key")
+        case .failure(let err):
+            fail("hash key \(err)")
+        }
+    }
+
     static func testConfigPermissions() {
         let dir = FileManager.default.temporaryDirectory.path
         let path644 = dir + "/dbw-cfg-644.toml"
         let path600 = dir + "/dbw-cfg-600.toml"
         let path400 = dir + "/dbw-cfg-400.toml"
+        let path200 = dir + "/dbw-cfg-200.toml"
+        let pathMissing = dir + "/dbw-cfg-missing.toml"
         let body = """
         watch_folder = "/tmp/watch"
         [webhook]
@@ -166,10 +339,12 @@ struct DropBoxWatcherTests {
             try? FileManager.default.removeItem(atPath: path644)
             try? FileManager.default.removeItem(atPath: path600)
             try? FileManager.default.removeItem(atPath: path400)
+            try? FileManager.default.removeItem(atPath: path200)
         }
         try! writeFile(path: path644, contents: body, mode: 0o644)
         try! writeFile(path: path600, contents: body, mode: 0o600)
         try! writeFile(path: path400, contents: body, mode: 0o400)
+        try! writeFile(path: path200, contents: body, mode: 0o200)
 
         assert(!configPermissionsAcceptable(at: path644), "0644 not acceptable")
         if case .success = loadConfig(from: path644) { fail("0644 must not parse") }
@@ -180,6 +355,9 @@ struct DropBoxWatcherTests {
 
         assert(configPermissionsAcceptable(at: path400), "0400 acceptable")
         if case .success = loadConfig(from: path400) {} else { fail("0400 load") }
+
+        assert(configPermissionsAcceptable(at: path200), "0200 acceptable")
+        assert(!configPermissionsAcceptable(at: pathMissing), "missing path")
     }
 
     static func testIgnorePatterns() {
