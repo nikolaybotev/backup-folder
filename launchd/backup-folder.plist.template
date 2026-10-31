@@ -3,12 +3,12 @@
 <plist version="1.0">
 <dict>
 	<key>Label</key>
-	<string>com.nikolaybotev.backup.NAME</string>
+	<string>com.nikolaybotev.backup</string>
 	<key>ProgramArguments</key>
 	<array>
-		<string>/Users/USER/bin/backup-folder</string>
-		<string>/ABS/SOURCE</string>
-		<string>/ABS/BACKUP-DIR</string>
+		<string>/ABS/PATH/TO/HOME/bin/backup-folder</string>
+		<string>--config</string>
+		<string>/ABS/PATH/TO/HOME/.config/backup-folder/config.toml</string>
 	</array>
 	<key>StartCalendarInterval</key>
 	<dict>

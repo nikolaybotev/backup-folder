@@ -27,7 +27,7 @@ let package = Package(
         ),
         .executableTarget(
             name: "backup-folder",
-            dependencies: ["BuildStamp"],
+            dependencies: ["BuildStamp", "ToolConfig"],
             path: "Sources/backup-folder",
             swiftSettings: macOS12Target + [
                 .swiftLanguageMode(.v5),

@@ -5,14 +5,15 @@ Small macOS command-line tool that snapshots a folder with APFS copy-on-write cl
 First-time setup and restore after data loss are documented in [`docs/setup.md`](docs/setup.md) and [`docs/restore.md`](docs/restore.md). Run those checklists on your Mac; CI does not install them.
 
 ```
-backup-folder <src> <dest>
+backup-folder /abs/source /abs/backup-dir
+backup-folder --config /abs/config.toml
 ```
 
-Both paths must be absolute. Before creating the backup directory, the tool refuses when the destination is the same as the source or is inside it, comparing lexically normalized paths and symlink-resolved paths (including symlink cycles). It creates `dest` if needed and writes a log at `dest/backup.log`.
+The two-argument command snapshots one folder and does not read a config file. Paths on that command are absolute. Before creating the backup directory, the tool refuses when the destination is the same as the source or is inside it, comparing lexically normalized paths and symlink-resolved paths (including symlink cycles). It creates `dest` if needed and writes a log at `dest/backup.log`.
 
 Each run clones every file from `src` into a new snapshot directory named `yyyy-MM-dd_HHmmss-<pid>`, with `-2`, `-3`, and so on if that name is already taken. Legacy directories named `yyyy-MM-dd_HHmm` from before this naming change are still recognized for retention. Cloning is file by file (`clonefile` with `CLONE_NOFOLLOW`) because a whole-directory clone is refused inside iCloud-managed folders. Each file is an APFS copy-on-write clone, and a normal copy is used if cloning that file fails; the log records when a file was stored as a full copy. The snapshot is built in a temporary `.inprogress-<name>` directory and renamed into place when every item succeeded.
 
-If another run is already walking or pruning the same `dest`, the tool logs `skipped; dest busy` and exits without starting a new walk. Stale `.inprogress-*` directories under `dest` are removed only while the dest lock is held.
+If another run is already walking or pruning the same `dest`, that destination logs `skipped; dest busy` and does not start a new walk. Other folders in a config job still run. Stale `.inprogress-*` directories under `dest` are removed only while the dest lock is held.
 
 The tool does this in-process and does not shell out, so a Full Disk Access grant applies to this binary only.
 
@@ -36,7 +37,12 @@ After each snapshot the tool prunes `dest`, considering snapshot directories in 
 
 ## How it runs
 
-Run one LaunchAgent per folder. Each agent invokes `~/bin/backup-folder` hourly at minute 0 with that folder's source and home-mirrored backup directory. The template label is `com.nikolaybotev.backup.NAME` (replace `NAME`, `USER`, `/ABS/SOURCE`, and `/ABS/BACKUP-DIR` in [`launchd/backup-folder.plist.template`](launchd/backup-folder.plist.template)). Copy the filled plist to `~/Library/LaunchAgents/` and load it with `launchctl bootstrap gui/$(id -u)`. Loading LaunchAgents on the Mac is manual; CI does not install them.
+```
+backup-folder /abs/source /abs/backup-dir
+backup-folder --config /abs/config.toml
+```
+
+The two-argument command snapshots one folder. `--config` reads a file of source and destination pairs and backs up each of them. One LaunchAgent, label `com.nikolaybotev.backup`, runs that command hourly at minute 0. The template is [`launchd/backup-folder.plist.template`](launchd/backup-folder.plist.template). Replace each `/ABS/PATH/TO/HOME` placeholder. The example config is [`backup-folder.example.toml`](backup-folder.example.toml). Copy the filled plist to `~/Library/LaunchAgents/` and load it with `launchctl bootstrap gui/$(id -u)`. Loading LaunchAgents on the Mac is manual; CI does not install them. Moving from one agent per folder is described in [`docs/backup-job.md`](docs/backup-job.md).
 
 ## macOS for a real build and test
 

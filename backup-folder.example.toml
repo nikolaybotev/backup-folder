@@ -1,0 +1,12 @@
+# Example only. Copy to ~/.config/backup-folder/config.toml, use mode 0600, and replace placeholders.
+# Do not commit the real file.
+# pins.txt in that directory is a different file.
+# concurrency = 2
+
+[[folder]]
+source = "/ABS/SOURCE"
+dest = "/ABS/BACKUP-DIR"
+
+[[folder]]
+source = "/ABS/SOURCE-2"
+dest = "/ABS/BACKUP-DIR-2"

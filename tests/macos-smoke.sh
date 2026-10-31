@@ -23,6 +23,7 @@ LINK_SRC="$(mktemp -d)"
 LINK_DEST="$(mktemp -d)"
 FIFO_SRC="$(mktemp -d)"
 FIFO_DEST="$(mktemp -d)"
+CONFIG_TMP="$(mktemp -d)"
 cleanup() {
   chmod -R u+rwx "$FAIL_SRC" 2>/dev/null || true
   rm -f "$FIFO_SRC/pipe.fifo" 2>/dev/null || true
@@ -35,6 +36,9 @@ cleanup() {
     wait "$FIFO_PID" 2>/dev/null || true
   fi
   rm -rf "$SRC" "$DEST" "$FAIL_SRC" "$FAIL_DEST" "${CONTAIN_SRC:-}" "$LINK_SRC" "$LINK_DEST" "$FIFO_SRC" "$FIFO_DEST" "${LINK_HIDDEN:-}"
+  if [[ -n "${CONFIG_TMP:-}" ]]; then
+    rm -rf "$CONFIG_TMP"
+  fi
 }
 trap cleanup EXIT
 
@@ -300,6 +304,233 @@ fifo_snap_count="$(count_snapshot_dirs "$FIFO_DEST")"
 if [[ "$fifo_snap_count" -ne 0 ]]; then
   echo "Fifo fixture should leave no snapshot directory, found count=${fifo_snap_count}" >&2
   ls -la "$FIFO_DEST" >&2
+  exit 1
+fi
+
+run_job_config() {
+  local mode="$1"
+  local body="$2"
+  local cfg="$CONFIG_TMP/job.toml"
+  printf '%s\n' "$body" >"$cfg"
+  chmod "$mode" "$cfg"
+  set +e
+  "$ROOT/backup-folder" --config "$cfg" >/dev/null 2>"$CONFIG_TMP/job.err"
+  JOB_RC=$?
+  set -e
+}
+
+JOB_A_SRC="$CONFIG_TMP/a-src"
+JOB_A_DEST="$CONFIG_TMP/a-dest"
+JOB_B_SRC="$CONFIG_TMP/b-src"
+JOB_B_DEST="$CONFIG_TMP/b-dest"
+mkdir -p "$JOB_A_SRC" "$JOB_B_SRC"
+printf 'job-a\n' >"$JOB_A_SRC/a.txt"
+printf 'job-b\n' >"$JOB_B_SRC/b.txt"
+run_job_config 600 "$(cat <<EOF
+[[folder]]
+source = "$JOB_A_SRC"
+dest = "$JOB_A_DEST"
+
+[[folder]]
+source = "$JOB_B_SRC"
+dest = "$JOB_B_DEST"
+EOF
+)"
+if [[ "$JOB_RC" -ne 0 ]]; then
+  echo "Expected exit 0 for two config folders, got ${JOB_RC}" >&2
+  cat "$CONFIG_TMP/job.err" >&2 || true
+  exit 1
+fi
+if [[ "$(count_snapshot_dirs "$JOB_A_DEST")" -ne 1 || "$(count_snapshot_dirs "$JOB_B_DEST")" -ne 1 ]]; then
+  echo "Expected one snapshot in each config destination" >&2
+  ls -la "$JOB_A_DEST" "$JOB_B_DEST" >&2
+  exit 1
+fi
+if ! grep -q 'OK snapshot' "$JOB_A_DEST/backup.log" || ! grep -q 'OK snapshot' "$JOB_B_DEST/backup.log"; then
+  echo "Config job missing OK snapshot in a destination log" >&2
+  exit 1
+fi
+
+MISS_SRC="$CONFIG_TMP/missing-src"
+MISS_DEST="$CONFIG_TMP/missing-dest"
+MISS_OK_SRC="$CONFIG_TMP/missing-ok-src"
+MISS_OK_DEST="$CONFIG_TMP/missing-ok-dest"
+mkdir -p "$MISS_OK_SRC"
+printf 'present\n' >"$MISS_OK_SRC/a.txt"
+run_job_config 600 "$(cat <<EOF
+[[folder]]
+source = "$MISS_SRC"
+dest = "$MISS_DEST"
+
+[[folder]]
+source = "$MISS_OK_SRC"
+dest = "$MISS_OK_DEST"
+EOF
+)"
+if [[ "$JOB_RC" -ne 1 ]]; then
+  echo "Expected exit 1 when one config source is missing, got ${JOB_RC}" >&2
+  cat "$CONFIG_TMP/job.err" >&2 || true
+  exit 1
+fi
+if [[ "$(count_snapshot_dirs "$MISS_OK_DEST")" -ne 1 ]]; then
+  echo "Missing-source case should still publish the other folder" >&2
+  ls -la "$MISS_OK_DEST" >&2 || true
+  exit 1
+fi
+if [[ "$(count_snapshot_dirs "$MISS_DEST")" -ne 0 ]]; then
+  echo "Missing source must not publish a snapshot" >&2
+  ls -la "$MISS_DEST" >&2
+  exit 1
+fi
+
+DUP_SRC_A="$CONFIG_TMP/dup-src-a"
+DUP_SRC_B="$CONFIG_TMP/dup-src-b"
+DUP_DEST="$CONFIG_TMP/dup-dest"
+mkdir -p "$DUP_SRC_A" "$DUP_SRC_B"
+printf 'dup-a\n' >"$DUP_SRC_A/a.txt"
+printf 'dup-b\n' >"$DUP_SRC_B/b.txt"
+run_job_config 600 "$(cat <<EOF
+[[folder]]
+source = "$DUP_SRC_A"
+dest = "$DUP_DEST"
+
+[[folder]]
+source = "$DUP_SRC_B"
+dest = "$DUP_DEST"
+EOF
+)"
+if [[ "$JOB_RC" -ne 2 ]]; then
+  echo "Expected exit 2 for duplicate dest, got ${JOB_RC}" >&2
+  cat "$CONFIG_TMP/job.err" >&2 || true
+  exit 1
+fi
+if [[ -d "$DUP_DEST" ]]; then
+  echo "Duplicate dest must not create a destination" >&2
+  ls -la "$DUP_DEST" >&2
+  exit 1
+fi
+
+LOOSE_SRC="$CONFIG_TMP/loose-src"
+LOOSE_DEST="$CONFIG_TMP/loose-dest"
+mkdir -p "$LOOSE_SRC"
+printf 'loose\n' >"$LOOSE_SRC/a.txt"
+run_job_config 644 "$(cat <<EOF
+[[folder]]
+source = "$LOOSE_SRC"
+dest = "$LOOSE_DEST"
+EOF
+)"
+if [[ "$JOB_RC" -ne 2 ]]; then
+  echo "Expected exit 2 for mode 0644 config, got ${JOB_RC}" >&2
+  cat "$CONFIG_TMP/job.err" >&2 || true
+  exit 1
+fi
+if [[ -d "$LOOSE_DEST" ]]; then
+  echo "Mode 0644 config must not start a folder" >&2
+  ls -la "$LOOSE_DEST" >&2
+  exit 1
+fi
+
+IN_SRC="$CONFIG_TMP/in-src"
+IN_GOOD_SRC="$CONFIG_TMP/in-good-src"
+IN_GOOD_DEST="$CONFIG_TMP/in-good-dest"
+mkdir -p "$IN_SRC" "$IN_GOOD_SRC"
+printf 'inside\n' >"$IN_SRC/a.txt"
+printf 'beside\n' >"$IN_GOOD_SRC/a.txt"
+run_job_config 600 "$(cat <<EOF
+[[folder]]
+source = "$IN_SRC"
+dest = "$IN_SRC/nested"
+
+[[folder]]
+source = "$IN_GOOD_SRC"
+dest = "$IN_GOOD_DEST"
+EOF
+)"
+if [[ "$JOB_RC" -ne 2 ]]; then
+  echo "Expected exit 2 when one dest is inside its source, got ${JOB_RC}" >&2
+  cat "$CONFIG_TMP/job.err" >&2 || true
+  exit 1
+fi
+if [[ "$(count_snapshot_dirs "$IN_GOOD_DEST")" -ne 1 ]]; then
+  echo "Containment beside a good folder should still publish that folder" >&2
+  ls -la "$IN_GOOD_DEST" >&2 || true
+  exit 1
+fi
+if [[ -e "$IN_SRC/nested" ]]; then
+  echo "Dest inside source must not be created" >&2
+  ls -la "$IN_SRC" >&2
+  exit 1
+fi
+
+BUSY_SRC="$CONFIG_TMP/busy-src"
+BUSY_DEST="$CONFIG_TMP/busy-dest"
+BUSY_OK_SRC="$CONFIG_TMP/busy-ok-src"
+BUSY_OK_DEST="$CONFIG_TMP/busy-ok-dest"
+mkdir -p "$BUSY_SRC" "$BUSY_DEST" "$BUSY_OK_SRC"
+printf 'busy-src\n' >"$BUSY_SRC/a.txt"
+printf 'busy-ok\n' >"$BUSY_OK_SRC/a.txt"
+"$ROOT/hold-lock" "$BUSY_DEST" &
+HOLD_PID=$!
+sleep 1
+run_job_config 600 "$(cat <<EOF
+[[folder]]
+source = "$BUSY_SRC"
+dest = "$BUSY_DEST"
+
+[[folder]]
+source = "$BUSY_OK_SRC"
+dest = "$BUSY_OK_DEST"
+EOF
+)"
+kill "$HOLD_PID" 2>/dev/null || true
+wait "$HOLD_PID" 2>/dev/null || true
+HOLD_PID=""
+if [[ "$JOB_RC" -ne 0 ]]; then
+  echo "Expected exit 0 when one config dest is busy, got ${JOB_RC}" >&2
+  cat "$CONFIG_TMP/job.err" >&2 || true
+  exit 1
+fi
+if ! grep -q 'skipped; dest busy' "$BUSY_DEST/backup.log"; then
+  echo "Busy config dest missing skipped; dest busy:" >&2
+  cat "$BUSY_DEST/backup.log" >&2 || true
+  exit 1
+fi
+if [[ "$(count_snapshot_dirs "$BUSY_DEST")" -ne 0 ]]; then
+  echo "Busy config dest must not gain a snapshot" >&2
+  ls -la "$BUSY_DEST" >&2
+  exit 1
+fi
+if [[ "$(count_snapshot_dirs "$BUSY_OK_DEST")" -ne 1 ]]; then
+  echo "Busy dest beside a good folder should still publish that folder" >&2
+  ls -la "$BUSY_OK_DEST" >&2 || true
+  exit 1
+fi
+
+SAME_REAL="$CONFIG_TMP/same-real"
+SAME_LINK_A="$CONFIG_TMP/same-link-a"
+SAME_LINK_B="$CONFIG_TMP/same-link-b"
+mkdir -p "$SAME_REAL"
+ln -s "$SAME_REAL" "$SAME_LINK_A"
+ln -s "$SAME_REAL" "$SAME_LINK_B"
+run_job_config 600 "$(cat <<EOF
+[[folder]]
+source = "$CONFIG_TMP/same-src-a"
+dest = "$SAME_LINK_A"
+
+[[folder]]
+source = "$CONFIG_TMP/same-src-b"
+dest = "$SAME_LINK_B"
+EOF
+)"
+if [[ "$JOB_RC" -ne 2 ]]; then
+  echo "Expected exit 2 for two symlink dests to one directory, got ${JOB_RC}" >&2
+  cat "$CONFIG_TMP/job.err" >&2 || true
+  exit 1
+fi
+if [[ "$(count_snapshot_dirs "$SAME_REAL")" -ne 0 ]]; then
+  echo "Symlink dests to one directory must publish nothing" >&2
+  ls -la "$SAME_REAL" >&2
   exit 1
 fi
 
