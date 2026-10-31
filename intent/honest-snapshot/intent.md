@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Author | Nikolay |
+| Author | Maintainer |
 | Captured | 2026-10-29 |
 | Status | Draft |
 | Stage | 1 · Plan |
@@ -20,7 +20,7 @@ A snapshot name is created only when every item in the walk succeeded. A failed 
 ## Affected users and systems
 
 - **Users:** the person whose hourly snapshot is the copy they would restore.
-- **Systems:** `backup-folder` on macOS and the `macos` smoke check. Not `~/Backups`, and not the binary installed on Roger.
+- **Systems:** `backup-folder` on macOS and the `macos` smoke check. Not `~/Backups`, and not the binary installed on the deployment Mac.
 
 ## Constraints and principles
 
@@ -36,7 +36,7 @@ A snapshot name is created only when every item in the walk succeeded. A failed 
 
 > Then write the intent(s) from your findings and fix all the issues you identified, plus anything else you find. Split them into one or more intents as you judge best, following the ai-native-sdlc skill: spec and plan, then an independent review, then build, with one phase per PR, merged only when checks pass.
 >
-> The standing rule hasn't changed: nothing touches ~/Backups or the installed binary on Roger. When a release is ready, report it to me and I'll arrange the rollout with Nikolay. Send me PR links and a short status as each phase lands.
+> The standing rule has not changed: nothing touches ~/Backups or the installed binary on the deployment Mac. When a release is ready, send PR links and a short status to the coordinator for rollout approval.
 
 ## Source
 

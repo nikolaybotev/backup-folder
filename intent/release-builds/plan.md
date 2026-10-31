@@ -8,7 +8,7 @@
 
 Spec wins. Update this file in the same change whenever implementation departs from it.
 
-The pull request that adds this folder does not start these phases. A phase starts only when someone says to build. One phase is one pull request, opened ready for review. The build agent does not merge. It does not push a tag, does not set a real pin, does not run `scripts/install-roger-tools.sh`, and does not create a certificate or a secret.
+The pull request that adds this folder does not start these phases. A phase starts only when someone says to build. One phase is one pull request, opened ready for review. The build agent does not merge. It does not push a tag, does not set a real pin, does not run `scripts/install-tools.sh`, and does not create a certificate or a secret.
 
 No phase edits ruleset 26167970. No phase adds a PAT, a GitHub App token, or a bypass. No phase adds a required status check. Job id `publish` stays off the ruleset.
 
@@ -16,7 +16,7 @@ No phase edits ruleset 26167970. No phase adds a PAT, a GitHub App token, or a b
 
 None. Ruleset 26167970 was rechecked on 2026-10-30. It targets the default branch only. It does not target tags. The release job pushes a tag and does not push a commit, so the ruleset is left unchanged and there is no gate.
 
-A missing signing secret is not a stop for the phase. FR12 fails that `publish` run, including a run that does not create a tag, before any tag push. Nikolay and Roger set the two secrets from the Mac.
+A missing signing secret is not a stop for the phase. FR12 fails that `publish` run, including a run that does not create a tag, before any tag push. The maintainer and the deployment Mac set the two secrets from the Mac.
 
 ## Acceptance-criteria coverage
 
@@ -28,7 +28,7 @@ A missing signing secret is not a stop for the phase. FR12 fails that `publish` 
 | AC4 | `bash tests/build-entry-test.sh` | 0 |
 | AC5 | `bash tests/release-version-test.sh` | 1 |
 | AC6 | `bash tests/release-workflow.sh` | 1 |
-| AC7 | `bash tests/install-roger-tools-test.sh` | 2 |
+| AC7 | `bash tests/install-tools-test.sh` | 2 |
 | AC8 | `bash tests/no-secrets.sh` and `bash tests/setup-docs.sh` | 2 |
 | AC9 | `bash tests/linux-unit.sh` and the retention and path tests | 0 |
 | AC10 | Diff of the spec pull request is only `intent/release-builds/` | this folder |
@@ -71,16 +71,16 @@ DoD: `bash tests/release-version-test.sh` and `bash tests/release-workflow.sh` e
 
 ## Phase 2 — Install script and docs
 
-Files: `scripts/install-roger-tools.sh`, `tests/install-roger-tools-test.sh`, `README.md`, `docs/setup.md`, `tests/setup-docs.sh`, `AGENTS.md`.
+Files: `scripts/install-tools.sh`, `tests/install-tools-test.sh`, `README.md`, `docs/setup.md`, `tests/setup-docs.sh`, `AGENTS.md`.
 
 1. Change the installer to FR16. The stub `gh` in the test must serve `SHA256SUMS` and the binary. A wrong hash exits non-zero and leaves `~/bin` unchanged. Remove the attestation strings from the script and from the test's required source checks.
 2. Add the README code-signing section from FR18, including the TCC paragraph. Do not state a certificate lifetime. Commands read the password and the p12 from files. They do not echo them. No 1Password item URI.
-3. Point the watcher install steps at `scripts/install-roger-tools.sh`, `pins.txt`, and `launchd/drop-box-watcher.plist.template`. Say that a merge does not install on Roger.
+3. Point the watcher install steps at `scripts/install-tools.sh`, `pins.txt`, and `launchd/drop-box-watcher.plist.template`. Say that a merge does not install on the deployment Mac.
 4. Add one `Manual:` bullet to `docs/setup.md` for that section. Update the watcher LaunchAgent bullet so it names the template in the repo. Set the setup bullet count in `tests/setup-docs.sh` from 32 to 33. Keep the restore count at 7 and keep every existing anchor. Add the anchor `Nikolay Botev Code Signing`.
 
 `pins.txt` stays `unpinned` on both lines.
 
-DoD: `bash tests/install-roger-tools-test.sh`, `bash tests/no-secrets.sh`, and `bash tests/setup-docs.sh` exit 0.
+DoD: `bash tests/install-tools-test.sh`, `bash tests/no-secrets.sh`, and `bash tests/setup-docs.sh` exit 0.
 
 ## Phase 3 — Pin the first release
 
@@ -88,14 +88,14 @@ Files: `pins.txt`.
 
 This phase does not start until the first `v*` release exists. With no release label on that merge, the tag is `v0.1.1`. Set both lines to that published tag. Do not run the installer. Do not write under `~/bin` or `~/Backups`.
 
-The pull request body lists the steps Nikolay runs, and nobody else:
+The pull request body lists the steps the maintainer runs, and nobody else:
 
 1. Finish the README code-signing section once: openssl, `security import`, `add-trusted-cert -p codeSign`, a copy in 1Password, `gh secret set` from a pipe or a file, then delete the temp files.
 2. `export SIGN_IDENTITY="Nikolay Botev Code Signing"` and `bash scripts/build.sh` for a local build. Omit `SIGN_IDENTITY` for an ad-hoc build. Omit `VERSION` so the version comes from `git describe --tags --dirty`. `--version` shows the short SHA. `--version --verbose` shows the full SHA.
 3. For a minor or major release, add label `release:minor` or `release:major` on the pull request before it merges. Otherwise the next tag is a patch.
-4. After this pin is on `main`, `bash scripts/install-roger-tools.sh` downloads that tag and checks `SHA256SUMS`.
+4. After this pin is on `main`, `bash scripts/install-tools.sh` downloads that tag and checks `SHA256SUMS`.
 
-DoD: `pins.txt` names the published tag on both lines, and `bash tests/install-roger-tools-test.sh` still exits 0 against a fixture. The unpinned skip case stays in that test.
+DoD: `pins.txt` names the published tag on both lines, and `bash tests/install-tools-test.sh` still exits 0 against a fixture. The unpinned skip case stays in that test.
 
 ### After the first publish
 

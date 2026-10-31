@@ -21,7 +21,7 @@ This spec pull request adds the intent folder only. It does not add `Package.swi
 - G1. One package and one build script produce both executables.
 - G2. A merge to `main` publishes one GitHub release with both arm64 binaries and checksums.
 - G3. The release job signs with `Nikolay Botev Code Signing`. A local build uses that identity when `SIGN_IDENTITY` is set, and ad-hoc signing when it is not.
-- G4. `scripts/install-roger-tools.sh` installs a pinned release with `gh release download` and a checksum check.
+- G4. `scripts/install-tools.sh` installs a pinned release with `gh release download` and a checksum check.
 - G5. Docs describe the one-time certificate setup, TCC, and the watcher install from a pinned release.
 
 **Non-goals**
@@ -29,7 +29,7 @@ This spec pull request adds the intent folder only. It does not add `Package.swi
 - A paid Apple Developer membership, Developer ID, notarization, or a Gatekeeper assessment.
 - Generating a certificate, a key, a `.p12`, or a secret. Running `gh secret set`. Printing a secret value.
 - Setting a real pin in the spec pull request, or before the first published tag exists.
-- Running `scripts/install-roger-tools.sh` against a home directory, `launchctl`, or any write under `~/Backups` or `~/bin`.
+- Running `scripts/install-tools.sh` against a home directory, `launchctl`, or any write under `~/Backups` or `~/bin`.
 - A new required status check. Editing ruleset 26167970. A PAT or a bypass actor.
 - Intel binaries, a Linux product build, or `swift build` on the `linux` job.
 - Changing snapshot behavior or watcher behavior.
@@ -43,20 +43,20 @@ This spec pull request adds the intent folder only. It does not add `Package.swi
 - P2. The release job fails closed. Missing signing secrets do not become an ad-hoc signature. The job does not push a commit to `main`.
 - P3. A tag pushed with `GITHUB_TOKEN` does not start another workflow. A commit that already has a semver tag is not given a second one.
 - P4. Checksums are taken after signing. The install script trusts the checksum file from that release, not a local rebuild.
-- P5. Nikolay approves every install on Roger. A merge publishes a release. It does not install it.
+- P5. The maintainer approves every install on the deployment Mac. A merge publishes a release. It does not install it.
 - P6. The spec wins over the plan. A departure is written into the plan under that phase.
 
 ## 4. Users and scenarios
 
-Nikolay is the only person who creates the certificate, sets the two repo secrets, and runs the installer on Roger. An agent may edit the repo. An agent does not create key material, set secrets, push a tag by hand, or run the installer.
+The maintainer is the only person who creates the certificate, sets the two repo secrets, and runs the installer on the deployment Mac. An agent may edit the repo. An agent does not create key material, set secrets, push a tag by hand, or run the installer.
 
-- **S1. Local build on Roger.** He exports `SIGN_IDENTITY` as `Nikolay Botev Code Signing` and runs `bash scripts/build.sh`. The script signs with the login-keychain certificate.
+- **S1. Local build on the deployment Mac.** The operator exports `SIGN_IDENTITY` as `Nikolay Botev Code Signing` and runs `bash scripts/build.sh`. The script signs with the login-keychain certificate.
 - **S2. Local build without the variable.** The same command ad-hoc signs. Desktop access may be prompted again after that rebuild.
 - **S3. Pull request.** The `macos` job exports `VERSION=v0.0.0` and runs `bash scripts/build.sh` with `SIGN_IDENTITY` unset. The `linux` job does not build the package. Required checks stay `macos` and `linux`.
 - **S4. First publish.** No semver tag exists. The baseline is `v0.1.0`. The merged pull request has no release label, so the job tags that commit `v0.1.1` and publishes the release in the same run. It does not push a commit.
 - **S5. Later merge, no label.** The latest tag is `v0.1.1`. The job tags `v0.1.2` and publishes it in that same run.
 - **S6. Minor or major.** The merged pull request carries `release:minor` or `release:major`. The job bumps that component and publishes the new tag in the same run. It does not choose a minor or a major on its own.
-- **S7. Install.** After a later phase sets `pins.txt` to a tag that exists, Nikolay runs `bash scripts/install-roger-tools.sh`. The script downloads the assets and checks SHA-256.
+- **S7. Install.** After a later phase sets `pins.txt` to a tag that exists, the maintainer runs `bash scripts/install-tools.sh`. The script downloads the assets and checks SHA-256.
 
 ## 5. Functional requirements
 
@@ -127,19 +127,19 @@ FR15. After verify and checksums, the job attests each binary with `actions/atte
 
 ### 5.4 Install, pins, docs
 
-FR16. `scripts/install-roger-tools.sh` keeps the current refusal rules: uid 0, a path component named `Backups`, an invalid tool name, and a pin that is neither `unpinned` nor `v` plus numeric components. `unpinned` skips. A real pin downloads that release asset with `gh release download` and downloads `SHA256SUMS` the same way. It checks the tool's line with `shasum -a 256 -c`. On mismatch or download failure it deletes the temp file, leaves any existing binary in `~/bin`, and exits non-zero. On success it moves the file to `~/bin/<tool>` mode `755`. It does not build from source, does not call `gh attestation verify`, `launchctl`, `sudo`, or `op`, and does not read or write `~/Backups`.
+FR16. `scripts/install-tools.sh` keeps the current refusal rules: uid 0, a path component named `Backups`, an invalid tool name, and a pin that is neither `unpinned` nor `v` plus numeric components. `unpinned` skips. A real pin downloads that release asset with `gh release download` and downloads `SHA256SUMS` the same way. It checks the tool's line with `shasum -a 256 -c`. On mismatch or download failure it deletes the temp file, leaves any existing binary in `~/bin`, and exits non-zero. On success it moves the file to `~/bin/<tool>` mode `755`. It does not build from source, does not call `gh attestation verify`, `launchctl`, `sudo`, or `op`, and does not read or write `~/Backups`.
 
 FR17. `pins.txt` stays the pin list. Both lines stay `unpinned` through the build phases that land the package, the workflow, and the installer. A later phase sets both lines to the first published tag only after that release exists. With no release label on that first merge, the tag is `v0.1.1`. That phase does not run the installer. The spec pull request does not change `pins.txt`.
 
 FR18. Docs:
 
-- `README.md` tells a person to build with `bash scripts/build.sh` and no other compile line. Roger's local release build exports `SIGN_IDENTITY=Nikolay Botev Code Signing` first.
-- A short code-signing section matches Nikolay's procedure: `/usr/bin/openssl` (LibreSSL) creates a self-signed RSA 2048 certificate whose subject is `/CN=Nikolay Botev Code Signing` and whose extended key usage is code signing, then `pkcs12` exports it. `security import` loads the p12 into the login keychain. `security add-trusted-cert -p codeSign` trusts it for code signing. A copy of the p12 goes into 1Password. `gh secret set` reads `MACOS_SIGNING_P12_BASE64` and `MACOS_SIGNING_P12_PASSWORD` from a pipe or a file. Temp files are deleted. The section does not contain a password, a p12 body, a secret value, or a 1Password item URI.
+- `README.md` tells a person to build with `bash scripts/build.sh` and no other compile line. The deployment Mac's local release build exports `SIGN_IDENTITY=Nikolay Botev Code Signing` first.
+- A short code-signing section matches the maintainer's procedure: `/usr/bin/openssl` (LibreSSL) creates a self-signed RSA 2048 certificate whose subject is `/CN=Nikolay Botev Code Signing` and whose extended key usage is code signing, then `pkcs12` exports it. `security import` loads the p12 into the login keychain. `security add-trusted-cert -p codeSign` trusts it for code signing. A copy of the p12 goes into 1Password. `gh secret set` reads `MACOS_SIGNING_P12_BASE64` and `MACOS_SIGNING_P12_PASSWORD` from a pipe or a file. Temp files are deleted. The section does not contain a password, a p12 body, a secret value, or a 1Password item URI.
 - The same section says Desktop access is tied to the code signature. An ad-hoc signature changes every rebuild, so a later ad-hoc build may prompt again. Builds signed with `Nikolay Botev Code Signing` keep that identity, which is why the release job uses it.
-- The watcher install steps say both binaries come from `scripts/install-roger-tools.sh` once `pins.txt` names a published tag. They name `launchd/drop-box-watcher.plist.template`. They say a merge does not install on Roger, and that CI and agents do not copy binaries into `~/bin`, write the real config, or load the agent.
+- The watcher install steps say both binaries come from `scripts/install-tools.sh` once `pins.txt` names a published tag. They name `launchd/drop-box-watcher.plist.template`. They say a merge does not install on the deployment Mac, and that CI and agents do not copy binaries into `~/bin`, write the real config, or load the agent.
 - `docs/setup.md` gains one `Manual:` bullet for that one-time signing setup and points the watcher LaunchAgent bullet at the template that is already in the repo. `tests/setup-docs.sh` expects 33 setup bullets and keeps every existing anchor. `docs/restore.md` stays at 7 bullets.
 
-FR19. `AGENTS.md` names `bash scripts/build.sh` as the macOS product build, says the `linux` job does not build the package, and says a release is published by the `publish` job on a push to `main`. It does not say a `v*` tag push is the only way a release runs. It still says agents do not set a real pin, do not run the installer against Roger, and do not edit GitHub rulesets.
+FR19. `AGENTS.md` names `bash scripts/build.sh` as the macOS product build, says the `linux` job does not build the package, and says a release is published by the `publish` job on a push to `main`. It does not say a `v*` tag push is the only way a release runs. It still says agents do not set a real pin, do not run the installer against the deployment Mac, and do not edit GitHub rulesets.
 
 FR20. No phase adds a required status check. The required contexts stay `macos` and `linux`. Job id `publish` must not be added to ruleset 26167970.
 
@@ -157,7 +157,7 @@ AC5. `bash tests/release-version-test.sh` exits 0. It covers no tags becoming `v
 
 AC6. `bash tests/release-workflow.sh` exits 0. It requires the `publish` job, the `main` push trigger, `fetch-depth: 0`, the two secret names, `pull-requests: read`, `SIGN_IDENTITY` set to `Nikolay Botev Code Signing` before the single `scripts/build.sh` invocation, `VERSION` set to the plain tag being published, `codesign --verify --strict`, `SHA256SUMS`, `uname -m`, a tag ref push, the full SHA in the release body, and the attestation flags. It rejects a second product build in that job, a `pull_request` trigger, a `schedule` trigger, a tag trigger, a job id `macos` or `linux` inside `release.yml`, `spctl`, `git commit`, a push of `main`, `timeout-minutes` on `publish`, and a `VERSION` file. `scripts/build.sh` contains one `swift build -c release` with no `--product` flag, `git rev-parse HEAD`, `git describe --tags --dirty`, and `date -u +%Y-%m-%dT%H:%MZ`. It does not assign `0.0.0`. The secret check in the workflow runs on every `publish` run, including a run that does not create a tag.
 
-AC7. `bash tests/install-roger-tools-test.sh` exits 0. A pinned install with a stub `gh` fails when the checksum does not match and succeeds when it does. The script source does not contain `gh attestation verify`.
+AC7. `bash tests/install-tools-test.sh` exits 0. A pinned install with a stub `gh` fails when the checksum does not match and succeeds when it does. The script source does not contain `gh attestation verify`.
 
 AC8. `bash tests/no-secrets.sh` and `bash tests/setup-docs.sh` exit 0. The signing section names `Nikolay Botev Code Signing`, `MACOS_SIGNING_P12_BASE64`, and `MACOS_SIGNING_P12_PASSWORD`, and the repo contains no p12 and no password value.
 
@@ -167,19 +167,19 @@ AC10. The spec pull request's diff is only `intent/release-builds/`. No later ph
 
 ## 7. Design decisions
 
-**D1 — Git tags, no VERSION file, protection unchanged.** Nikolay replaced the VERSION-file scheme. His words: use git tags for the version, no VERSION file, and leave the protection unchanged. The workflow finds the latest `vMAJOR.MINOR.PATCH` tag, or uses `v0.1.0` when none exist, and publishes the next version in the same run. The default bump is patch. Label `release:minor` or `release:major` on the merged pull request selects the other bump. One tag still covers both binaries. Minor and major are not automatic. The baseline `v0.1.0` is not created as a tag, so the first publish with no label is `v0.1.1`. The workflow pushes only that tag, with `GITHUB_TOKEN`, and does not push a commit. Checked 2026-10-30: the repo has no tags and no GitHub releases. Squash subjects on `main` end with `(#N)`, including `9ddd15a`. The same check found no repository labels `release:minor` or `release:major`. `gh label list` returned the ten default GitHub labels. This intent adds those two labels. A failed label lookup fails the publish job. A successful read with neither label stays a patch.
+**D1 — Git tags, no VERSION file, protection unchanged.** The maintainer replaced the VERSION-file scheme. Stated requirement: use git tags for the version, no VERSION file, and leave the protection unchanged. The workflow finds the latest `vMAJOR.MINOR.PATCH` tag, or uses `v0.1.0` when none exist, and publishes the next version in the same run. The default bump is patch. Label `release:minor` or `release:major` on the merged pull request selects the other bump. One tag still covers both binaries. Minor and major are not automatic. The baseline `v0.1.0` is not created as a tag, so the first publish with no label is `v0.1.1`. The workflow pushes only that tag, with `GITHUB_TOKEN`, and does not push a commit. Checked 2026-10-30: the repo has no tags and no GitHub releases. Squash subjects on `main` end with `(#N)`, including `9ddd15a`. The same check found no repository labels `release:minor` or `release:major`. `gh label list` returned the ten default GitHub labels. This intent adds those two labels. A failed label lookup fails the publish job. A successful read with neither label stays a patch.
 
-**D2 — Identity `Nikolay Botev Code Signing`.** Nikolay replaced ad-hoc-only signing and replaced the documentation-only certificate. The release job imports `MACOS_SIGNING_P12_BASE64` and `MACOS_SIGNING_P12_PASSWORD` into a temporary keychain, signs with that common name, verifies with `codesign --verify --strict`, and always deletes the keychain. Missing secrets fail the job on every run, including a run that does not create a tag. There is no ad-hoc fallback on that job. The job sets `SIGN_IDENTITY` to `Nikolay Botev Code Signing` before the single `scripts/build.sh` invocation. Hardened runtime is `--options runtime` with no timestamp and no notarization. `spctl` is not used, because a self-signed certificate will not pass Gatekeeper assessment. `scripts/build.sh` signs with `SIGN_IDENTITY` when it is set and otherwise uses `codesign --sign -`. Roger's local builds set `SIGN_IDENTITY` to `Nikolay Botev Code Signing`. The certificate is self-signed, RSA 2048, extended key usage code signing, created with `/usr/bin/openssl` on macOS and a LibreSSL pkcs12 export, stored in the login keychain, and trusted for `codeSign`. This draft did not generate a key, a certificate, or a p12, and it did not run `gh secret set`.
+**D2 — Identity `Nikolay Botev Code Signing`.** The maintainer replaced ad-hoc-only signing and replaced the documentation-only certificate. The release job imports `MACOS_SIGNING_P12_BASE64` and `MACOS_SIGNING_P12_PASSWORD` into a temporary keychain, signs with that common name, verifies with `codesign --verify --strict`, and always deletes the keychain. Missing secrets fail the job on every run, including a run that does not create a tag. There is no ad-hoc fallback on that job. The job sets `SIGN_IDENTITY` to `Nikolay Botev Code Signing` before the single `scripts/build.sh` invocation. Hardened runtime is `--options runtime` with no timestamp and no notarization. `spctl` is not used, because a self-signed certificate will not pass Gatekeeper assessment. `scripts/build.sh` signs with `SIGN_IDENTITY` when it is set and otherwise uses `codesign --sign -`. The deployment Mac's local builds set `SIGN_IDENTITY` to `Nikolay Botev Code Signing`. The certificate is self-signed, RSA 2048, extended key usage code signing, created with `/usr/bin/openssl` on macOS and a LibreSSL pkcs12 export, stored in the login keychain, and trusted for `codeSign`. This draft did not generate a key, a certificate, or a p12, and it did not run `gh secret set`.
 
 **D3 — arm64 release assets.** Checked 2026-10-30. Workflow run 41104339464 on `9ddd15a` used the `macos` job label `macos-latest` and logged image `macos-26-arm64`. GitHub's hosted-runner table lists `macos-latest` as the arm64 macOS image. The release fails if `uname -m` is not `arm64`. Intel labels exist and are not used.
 
 **D4 — One command.** The command is `bash scripts/build.sh` with no arguments. The `macos` job, the CodeQL manual build, the release job, and a local build all use it. `SIGN_IDENTITY` is the signing switch. `VERSION` is the version half of the stamp. The `macos` job and the CodeQL manual build export `VERSION=v0.0.0` and leave `SIGN_IDENTITY` unset. The release job sets `VERSION` to the plain tag it is publishing and sets `SIGN_IDENTITY` to `Nikolay Botev Code Signing` before the single `scripts/build.sh` invocation. A local build leaves `VERSION` unset and gets `git describe --tags --dirty`. The SHA and the timestamp always come from `git rev-parse HEAD` and `date -u +%Y-%m-%dT%H:%MZ`. The script exits non-zero when it cannot determine a version and does not invent `0.0.0`.
 
-**D13 — Plain tag, SHA and time in the binary.** Nikolay added this. The tag stays `vMAJOR.MINOR.PATCH` with no SHA in the name. Both binaries stamp the full commit SHA and the UTC build timestamp next to the version. `--version` shows a 7-character prefix of that SHA. `--version --verbose` shows the full SHA. The release notes show the full SHA and the same timestamp. `git describe --tags --dirty` is the fallback when `VERSION` is unset. The script exits non-zero when it cannot determine a version and does not invent `0.0.0`. The `macos` job and the CodeQL manual build export `VERSION=v0.0.0`. Those jobs use `actions/checkout` at the default depth of 1, which does not fetch tags, and the repo has no tags yet, so `git describe --tags` cannot see a tag. The release job sets `VERSION` to the plain tag it is publishing.
+**D13 — Plain tag, SHA and time in the binary.** The maintainer added this. The tag stays `vMAJOR.MINOR.PATCH` with no SHA in the name. Both binaries stamp the full commit SHA and the UTC build timestamp next to the version. `--version` shows a 7-character prefix of that SHA. `--version --verbose` shows the full SHA. The release notes show the full SHA and the same timestamp. `git describe --tags --dirty` is the fallback when `VERSION` is unset. The script exits non-zero when it cannot determine a version and does not invent `0.0.0`. The `macos` job and the CodeQL manual build export `VERSION=v0.0.0`. Those jobs use `actions/checkout` at the default depth of 1, which does not fetch tags, and the repo has no tags yet, so `git describe --tags` cannot see a tag. The release job sets `VERSION` to the plain tag it is publishing.
 
 **D5 — Tools version 6.0.** The `macos-latest` image in run 41104339464 lists default Xcode 26.6. Apple's Xcode system requirements list that Xcode's compiler as Swift 6.3, and the Swift.org announcement for Swift 6.3.3 says Xcode 26.6 contains it. `mise.toml` pins Swift 6.4 for the Linux toolchain only. A tools version of 6.4 would be newer than the runner's compiler. Tools version 6.0 is accepted by Swift 6.3. This draft did not run `swift --version` on the runner. The image readme lists Xcode and does not print a Swift version line. On Swift 6.3 and on Swift 6.4.1, `swift build -c release --product A --product B` builds only the last product. `scripts/build.sh` runs one `swift build -c release` with no `--product` filter so both executables are built. This draft did not re-run that compile.
 
-**D6 — Checksums install, attestation stays on publish.** Nikolay asked for a checksum-verified download. The install script stops calling `gh attestation verify`. The publish job still attests, because `release.yml` on `9ddd15a` already does and this intent does not remove that check. Checksums are computed after `codesign` so they match the bytes that are uploaded.
+**D6 — Checksums install, attestation stays on publish.** The maintainer asked for a checksum-verified download. The install script stops calling `gh attestation verify`. The publish job still attests, because `release.yml` on `9ddd15a` already does and this intent does not remove that check. Checksums are computed after `codesign` so they match the bytes that are uploaded.
 
 **D7 — The tag push does not bump again.** The job does not push a commit, so it cannot start itself by a push to `main`. GitHub's `GITHUB_TOKEN` documentation, checked 2026-10-30, says events triggered by that token do not create a new workflow run, except `workflow_dispatch` and `repository_dispatch`. A tag push is not one of those exceptions. The workflow also has no tag trigger. A re-run of the same commit is `noop` once `HEAD` has a semver tag (FR10), so a second click does not mint another version. `macos` and `linux` still run on the original push to `main`. They do not compute a version.
 
@@ -189,9 +189,9 @@ AC10. The spec pull request's diff is only `intent/release-builds/`. No later ph
 
 **D10 — Pins wait for the tag.** `pins.txt` on `9ddd15a` is `backup-folder unpinned` and `drop-box-watcher unpinned`. The first real pin is the first published tag. With no release label, that tag is `v0.1.1`. Only a phase that can see that release sets the pin. The spec pull request does not.
 
-**D11 — Certificate lifetime.** Nikolay did not specify a certificate lifetime. The docs do not state one. This draft did not inspect his certificate.
+**D11 — Certificate lifetime.** The maintainer did not specify a certificate lifetime. The docs do not state one. This draft did not inspect the installed certificate.
 
-**D12 — TCC copy.** Desktop access follows the code signature. The docs say an ad-hoc rebuild may prompt again, and that the stable identity is what the release job and Roger's `SIGN_IDENTITY` builds use. This draft did not prompt TCC on a Mac.
+**D12 — TCC copy.** Desktop access follows the code signature. The docs say an ad-hoc rebuild may prompt again, and that the stable identity is what the release job and the deployment Mac's `SIGN_IDENTITY` builds use. This draft did not prompt TCC on a Mac.
 
 ## 8. Open questions
 
@@ -204,9 +204,9 @@ None. D9 is a finding, not a gate. Tags are not protected.
 | `Package.swift` and `scripts/build.sh` | Build both executables, stamp `--version`, and sign them |
 | `scripts/release-version.sh` | Next tag name, or `noop` |
 | Job `publish` | Keychain, verify, checksums, attestation, tag push, GitHub release |
-| `scripts/install-roger-tools.sh` and `pins.txt` | Download a pinned release and check SHA-256 |
+| `scripts/install-tools.sh` and `pins.txt` | Download a pinned release and check SHA-256 |
 | `README.md` and `docs/setup.md` | One-time certificate steps, TCC, watcher install |
-| Ruleset 26167970 | Stays as Roger set it. This repo does not edit it |
+| Ruleset 26167970 | Stays as the deployment Mac set it. This repo does not edit it |
 
 ## 10. What was checked
 
@@ -218,9 +218,9 @@ Checked 2026-10-30 against `main` at `9ddd15ad4f41c4b84cf0ac09ed59c4e4dcf0cd49`:
 - `actions/checkout@v4` in `test.yml`, `codeql.yml`, and `release.yml` sets no `fetch-depth`. The action default is depth 1, which does not fetch tags. The tag list length was 0.
 - `gh label list` on 2026-10-30 returned the ten default GitHub labels. `release:minor` and `release:major` were not among them.
 - On Swift 6.3 and on Swift 6.4.1, passing `--product` twice to `swift build -c release` builds only the last product. Recorded in D5. This draft did not re-run that compile.
-- `scripts/install-roger-tools.sh` downloads with `gh release download` and verifies with `gh attestation verify`. It does not check a checksum. `pins.txt` lists both tools as `unpinned`.
+- `scripts/install-tools.sh` downloads with `gh release download` and verifies with `gh attestation verify`. It does not check a checksum. `pins.txt` lists both tools as `unpinned`.
 - `tests/build-backup-folder.sh` symlinks `backup-folder.swift` to `main.swift` beside the three other snapshot sources because top-level code has to live in `main.swift`.
-- `README.md` still shows a one-file `swiftc` build and says Nikolay pushes a `v*` tag. `docs/setup.md` still says the watcher plist is not in the repo. `launchd/drop-box-watcher.plist.template` is on `main`.
+- `README.md` still shows a one-file `swiftc` build and says the maintainer pushes a `v*` tag. `docs/setup.md` still says the watcher plist is not in the repo. `launchd/drop-box-watcher.plist.template` is on `main`.
 - `tests/setup-docs.sh` requires 32 `Manual:` or `Script:` bullets in `docs/setup.md` and 7 in `docs/restore.md`. `tests/no-secrets.sh` scans `intent/`.
 - `.gitignore` ignores the path name `backup-folder` in any directory and ignores `/drop-box-watcher` with exceptions for the source tree.
 - Ruleset 26167970, rechecked the same day and recorded in D9. Target `branch`, include `~DEFAULT_BRANCH`, no tag ruleset, tag count 0, no releases. Actions permissions request returned 403.

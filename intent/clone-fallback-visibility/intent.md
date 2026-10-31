@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Author | Nikolay |
+| Author | Maintainer |
 | Captured | 2026-10-29 |
 | Status | Draft |
 | Stage | 1 · Plan |
@@ -19,7 +19,7 @@ The log and stderr say when a file was stored with a full copy. Creating `dest` 
 ## Affected users and systems
 
 - **Users:** the person who reads `dest/backup.log` and who runs the tool by hand.
-- **Systems:** `backup-folder` on macOS, the `macos` smoke check, the CodeQL workflow. Not `~/Backups`, and not the binary installed on Roger.
+- **Systems:** `backup-folder` on macOS, the `macos` smoke check, the CodeQL workflow. Not `~/Backups`, and not the binary installed on the deployment Mac.
 
 ## Constraints and principles
 
@@ -35,7 +35,7 @@ The log and stderr say when a file was stored with a full copy. Creating `dest` 
 
 > Then write the intent(s) from your findings and fix all the issues you identified, plus anything else you find. Split them into one or more intents as you judge best, following the ai-native-sdlc skill: spec and plan, then an independent review, then build, with one phase per PR, merged only when checks pass.
 >
-> The standing rule hasn't changed: nothing touches ~/Backups or the installed binary on Roger. When a release is ready, report it to me and I'll arrange the rollout with Nikolay. Send me PR links and a short status as each phase lands.
+> The standing rule has not changed: nothing touches ~/Backups or the installed binary on the deployment Mac. When a release is ready, send PR links and a short status to the coordinator for rollout approval.
 
 ## Source
 

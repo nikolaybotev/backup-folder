@@ -63,7 +63,7 @@
 
 **D3 — Release stays tag-driven.** `.github/workflows/release.yml` runs on `v*` tags. This phase does not change its build line and does not push a tag.
 
-**D4 — Do not touch the installed backup.** Never read or write `~/Backups` or `~/Backups/bin/backup-folder`. Merging does not install on Roger.
+**D4 — Do not touch the installed backup.** Never read or write `~/Backups` or `~/Backups/bin/backup-folder`. Merging does not install on the deployment Mac.
 
 **D5 — Who builds, and when it merges.** Spec, plan, and review use Grok 4.7 High. The build phase uses Composer 2.5. One phase is one branch and one pull request. The coordinator squash-merges only when the `macos` check is green, then deletes the branch. A cancelled check is not green.
 

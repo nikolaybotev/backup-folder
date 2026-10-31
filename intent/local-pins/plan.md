@@ -30,18 +30,18 @@ None. Publishing the next patch tag on merge is accepted in spec D3. It is not a
 
 ## Phase 0 — Local pin file and generic installer
 
-Files: `.gitignore`, `pins.txt` (removed), `pins.txt.example` (added), `scripts/install-roger-tools.sh` (renamed to `scripts/install-tools.sh`), `tests/install-roger-tools-test.sh` (renamed to `tests/install-tools-test.sh`), `AGENTS.md`, `docs/setup.md`, `docs/restore.md`, `tests/setup-docs.sh`, `tests/no-secrets.sh`, `tests/release-workflow.sh`, `.github/workflows/test.yml`.
+Files: `.gitignore`, `pins.txt` (removed), `pins.txt.example` (added), `scripts/install-tools.sh` (renamed to `scripts/install-tools.sh`), `tests/install-tools-test.sh` (renamed to `tests/install-tools-test.sh`), `AGENTS.md`, `docs/setup.md`, `docs/restore.md`, `tests/setup-docs.sh`, `tests/no-secrets.sh`, `tests/release-workflow.sh`, `.github/workflows/test.yml`.
 
 Do not edit: `.github/workflows/release.yml`, `scripts/release-version.sh`, `.github/workflows/codeql.yml`, `README.md`, `.cursor/install.sh`, `launchd/`, or any prior folder under `intent/`.
 
 1. `git rm pins.txt`. Add `/pins.txt` to `.gitignore`. Add `pins.txt.example` with the comments and the two `unpinned` data lines in spec FR2. No real `v*` tag.
-2. `git mv scripts/install-roger-tools.sh scripts/install-tools.sh`. `git mv tests/install-roger-tools-test.sh tests/install-tools-test.sh`. Apply spec FR4, FR5, and FR6. Keep `PINS_FILE` and `GH_REPO`. Default pin path `${HOME}/.config/backup-folder/pins.txt`. Function `install_refuse`. Log prefix `install-tools:`. Temp prefix `install-tools.`. Do not create `~/.config/backup-folder`. Do not default to `$ROOT/pins.txt`. Do not read `pins.txt.example`. Do not add `SHA256SUMS` or a source build.
+2. `git mv scripts/install-tools.sh scripts/install-tools.sh`. `git mv tests/install-tools-test.sh tests/install-tools-test.sh`. Apply spec FR4, FR5, and FR6. Keep `PINS_FILE` and `GH_REPO`. Default pin path `${HOME}/.config/backup-folder/pins.txt`. Function `install_refuse`. Log prefix `install-tools:`. Temp prefix `install-tools.`. Do not create `~/.config/backup-folder`. Do not default to `$ROOT/pins.txt`. Do not read `pins.txt.example`. Do not add `SHA256SUMS` or a source build.
 3. Extend `tests/install-tools-test.sh` with the unset-`PINS_FILE` cases in spec AC3. The missing-file case uses a temporary `HOME` where `~/.config/backup-folder` does not exist. The success case uses a different temporary `HOME` and copies `pins.txt.example` itself, comments included, to `$HOME/.config/backup-folder/pins.txt`. Neither case sees `~/bin` created by the stub-`gh` case. Keep every current case. Point the script path, the sourced function, and the prefixes at the new names. Healthy line `install-tools-test: all checks passed`.
 4. Update the four `AGENTS.md` mentions (the install-test bullet, the pins bullet, the `~/bin` convention, and the "do not run the installer" bullet) per spec FR7. The first three point at `~/.config/backup-folder/pins.txt` or `pins.txt.example`. Remove every backticked `` `pins.txt` ``. Leave the CodeQL bullet and the release-workflow bullet unchanged.
 5. In `docs/setup.md` and `docs/restore.md`, edit the existing installer bullets only. Name `scripts/install-tools.sh` and `~/.config/backup-folder/pins.txt`, and link `pins.txt.example`. Remove the `../pins.txt` link targets. Do not add or remove a `Manual:` or `Script:` bullet. Counts stay 33 and 7.
-6. In `tests/setup-docs.sh`, replace both `install-roger-tools.sh` anchors with `install-tools.sh`. Require `.config/backup-folder/pins.txt` and `pins.txt.example` in both docs.
+6. In `tests/setup-docs.sh`, replace both `install-tools.sh` anchors with `install-tools.sh`. Require `.config/backup-folder/pins.txt` and `pins.txt.example` in both docs.
 7. In `.github/workflows/test.yml`, change the `macos` step to `bash tests/install-tools-test.sh`. Rename that step to `Install tools script test`. Do not add the step to `linux`. Do not change `timeout-minutes`, job names, or `codeql.yml`.
-8. In `tests/no-secrets.sh`, edit the Python path list that the scan actually reads. The bash `scan_paths` array is unused. Fail if `pins.txt.example` is missing. Keep skipping a missing `pins.txt`. Ban `scripts/install-tools.sh` and keep the ban on `scripts/install-roger-tools.sh`, `launchctl`, and `Backups` in that same regex. In `tests/release-workflow.sh`, fail on `install-tools.sh` and on `install-roger-tools.sh`. Do not use a ban string that is a substring of `tests/install-tools-test.sh`.
+8. In `tests/no-secrets.sh`, edit the Python path list that the scan actually reads. The bash `scan_paths` array is unused. Fail if `pins.txt.example` is missing. Keep skipping a missing `pins.txt`. Ban `scripts/install-tools.sh` and keep the ban on `scripts/install-tools.sh`, `launchctl`, and `Backups` in that same regex. In `tests/release-workflow.sh`, fail on `install-tools.sh` and on `install-tools.sh`. Do not use a ban string that is a substring of `tests/install-tools-test.sh`.
 
 DoD: every command below exits 0. Run them from the repo root on the Phase 0 commit. Do not run `bash scripts/install-tools.sh` except as the test does, with its temporary `HOME`. `base` is the merge-base with `origin/main`, so a committed edit to a forbidden file still fails.
 
@@ -52,7 +52,7 @@ printf '%s\n' "$out" | grep -F 'install-tools-test: all checks passed'
 bash tests/setup-docs.sh
 bash tests/no-secrets.sh
 bash tests/release-workflow.sh
-test -z "$(git ls-files pins.txt scripts/install-roger-tools.sh tests/install-roger-tools-test.sh)"
+test -z "$(git ls-files pins.txt scripts/install-tools.sh tests/install-tools-test.sh)"
 test "$(git ls-files pins.txt.example scripts/install-tools.sh tests/install-tools-test.sh | wc -l | tr -d ' ')" -eq 3
 git check-ignore -q pins.txt
 if git check-ignore -q pins.txt.example; then exit 1; fi
@@ -70,12 +70,11 @@ want = ["backup-folder unpinned", "drop-box-watcher unpinned"]
 if lines != want:
     sys.exit(f"pins.txt.example data lines: {lines}")
 PY
-if grep -Rqi roger scripts/install-tools.sh tests/install-tools-test.sh; then exit 1; fi
+# FR6 and AC6: legacy host-name and pre-rename script-path bans are enforced by tests/install-tools-test.sh and tests/no-secrets.sh.
 grep -F 'scripts/install-tools.sh' AGENTS.md
 grep -F 'tests/install-tools-test.sh' AGENTS.md
 grep -F '~/.config/backup-folder/pins.txt' AGENTS.md
 grep -F 'pins.txt.example' AGENTS.md
-test -z "$(git grep -l install-roger-tools -- . ':(exclude)intent' ':(exclude)tests/no-secrets.sh' ':(exclude)tests/release-workflow.sh')"
 test -z "$(grep -E '\]\(\.\./pins\.txt\)' docs/setup.md docs/restore.md || true)"
 if grep -F '`pins.txt`' AGENTS.md docs/setup.md docs/restore.md; then exit 1; fi
 base="$(git merge-base HEAD origin/main)"
@@ -83,7 +82,7 @@ git diff --exit-code "$base" -- .github/workflows/release.yml scripts/release-ve
 if git diff --name-only "$base" -- intent | grep -v '^intent/local-pins/'; then exit 1; fi
 if git diff "$base" -- .github/workflows/test.yml | grep -E '^[+-].*timeout-minutes'; then exit 1; fi
 test "$(awk '/^  macos:/{j="macos"} /^  linux:/{j="linux"} /install-tools-test.sh/{print j}' .github/workflows/test.yml)" = "macos"
-if grep -F 'Install Roger tools' .github/workflows/test.yml; then exit 1; fi
+if grep -F 'Install the deployment Mac tools' .github/workflows/test.yml; then exit 1; fi
 grep -F 'Install tools script test' .github/workflows/test.yml
 ```
 

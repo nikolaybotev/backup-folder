@@ -8,7 +8,7 @@
 
 Spec wins. Update this file in the same change whenever implementation departs from it.
 
-Build phases are Composer 2.5, one phase per pull request, opened ready for review. The coordinator squash-merges a phase only when its required checks are green. A phase does not merge itself. Do not push a `v*` tag. Do not install or load anything on Roger. Do not edit `backup-folder.swift`, `tests/clonefile-probe.swift`, `tests/macos-smoke.sh`, `launchd/backup-folder.plist.template`, or any intent directory other than this one. Do not edit the CodeQL sentence in `AGENTS.md`. Branch protection is outside this intent.
+Build phases are Composer 2.5, one phase per pull request, opened ready for review. The coordinator squash-merges a phase only when its required checks are green. A phase does not merge itself. Do not push a `v*` tag. Do not install or load anything on the deployment Mac. Do not edit `backup-folder.swift`, `tests/clonefile-probe.swift`, `tests/macos-smoke.sh`, `launchd/backup-folder.plist.template`, or any intent directory other than this one. Do not edit the CodeQL sentence in `AGENTS.md`. Branch protection is outside this intent.
 
 `swiftc -parse` does not typecheck the Darwin watcher. The macOS CI build does.
 
@@ -16,7 +16,7 @@ Build phases are Composer 2.5, one phase per pull request, opened ready for revi
 
 Phase 1 stops if the macOS runner never delivers a local create to either trigger after the watcher is registered and both triggers are wired. AC6 still requires one nudge for `note.txt`, unchanged bytes, no nudge for `.DS_Store`, and a second nudge after the file grows. When startup and registration succeed but no POST arrives, treat that as a product bug (path/presenter/coordination), not a reason to weaken the smoke. Do not add a sleep on the readiness path. A script that exits 0 on the build and the exit-2 checks alone is not Phase 1 done.
 
-The unmeasured FSEvents flags on Roger are not a stop. [spec.md](spec.md) FR9 keeps both triggers and rechecks every event. AC11 says the implementation PR records that the measurement was not run.
+The unmeasured FSEvents flags on the deployment Mac are not a stop. [spec.md](spec.md) FR9 keeps both triggers and rechecks every event. AC11 says the implementation PR records that the measurement was not run.
 
 ## Acceptance-criteria coverage
 
@@ -65,7 +65,7 @@ Files: `drop-box-watcher/Watcher.swift`, `drop-box-watcher/main.swift`, `tests/m
 7. Extend `tests/linux-unit.sh` so the `Watcher.swift` sleep grep from AC5 runs now that the file exists.
 8. Update `AGENTS.md` with the `swiftc` build line and the `macos-watcher` success line. Leave the CodeQL sentence unchanged.
 
-The PR body states that the Roger iCloud measurement was not run and that the agent did not install the tool (AC11). It does not invent flags or callbacks. Do not add a sleep on the readiness path to make the smoke pass.
+The PR body states that the deployment Mac iCloud measurement was not run and that the agent did not install the tool (AC11). It does not invent flags or callbacks. Do not add a sleep on the readiness path to make the smoke pass.
 
 DoD: `bash tests/macos-watcher.sh` exits 0 on macOS and prints `macos-watcher: build OK, notify OK, unchanged OK`, which means AC6 happened: one nudge for `note.txt`, unchanged bytes, no nudge for `.DS_Store`, and a second nudge after the file grows. If the runner never delivers the create, that is the stop above: record the evidence in the build notes and leave the phase unfinished. `bash tests/macos-smoke.sh` still prints `macos-smoke: build OK, clonefile probe OK, snapshot OK, COW OK`. On a Linux builder, before opening the PR, `bash tests/linux-unit.sh` exits 0. The phase is not done until the `macos` check on the pull request is green because that smoke passed.
 
@@ -79,7 +79,7 @@ DoD: `bash tests/macos-watcher.sh` exits 0 on macOS and prints `macos-watcher: b
 - **GitHub Actions run 41048955709 (`fd37881`):** Same nudge timeout with empty posts and empty log in diagnostics; registration gate did not fail. The harness used `grep`/`SECONDS` without requiring a non-empty log file, so a wait could not be trusted against an empty path. Fixed by parsing `[log].path` from config and requiring it to equal the harness path, waiting with Python on non-zero byte size and substring match (printing log path and head on success), POSIX `O_APPEND`/`fsync` log writes, an `operational_log path=` line before `start()`, `RunLoop.main.perform` for presenter registration, and main-queue `Task` submission for webhooks.
 - **GitHub Actions run 41050433038 (`c8bd11d`):** Log path matched and startup lines appeared (`operational_log path=`, `started watch_folder=`, `fsevents stream started`), then the presenter gate timed out after 5s with no `registered file presenter` line while the process stayed alive. Cause: `RunLoop.main.perform` before `dispatchMain()` does not run on the GCD main run loop that `dispatchMain()` drives, so `registerOnMainRunLoop()` never executed. Fixed by enqueueing registration with `DispatchQueue.main.async` before `dispatchMain()` and logging `registering file presenter` immediately before `addFilePresenter`.
 - **GitHub Actions run 41050786016 (`23864d7`) — missed nudge after registration (bug, stop revoked):** Startup and presenter registration logged; AC6 poll timed out with empty POSTs (log 388 bytes). Cause: `presentedItemURL` used the symlink-resolved directory while the smoke writes through the configured symlink path, so `NSFilePresenter` did not observe the create; claim reads used the presenter-bound coordinator and could block on the presenter queue. Fixed by presenting the configured folder URL, watching both configured and resolved paths in FSEvents, comparing paths with `/private` normalization, using a separate coordinator for claims, and logging FSEvents/presenter callbacks plus webhook enqueue lines.
-- **GitHub Actions run 41050786016 (`589cfb5`) — planned stop (superseded):** Recorded when Phase 1 was blocked on Actions; Nikolay revoked that stop so the PR continues until AC6 is green.
+- **GitHub Actions run 41050786016 (`589cfb5`) — planned stop (superseded):** Recorded when Phase 1 was blocked on Actions; The maintainer revoked that stop so the PR continues until AC6 is green.
 
 ## Phase 2 — Install surface and release asset
 

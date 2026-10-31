@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Author | Nikolay (relayed by Roger) |
+| Author | Maintainer (relayed by coordinator) |
 | Captured | 2026-10-30 |
 | Status | Draft |
 | Stage | 1 · Plan |
@@ -10,7 +10,7 @@
 
 ## Problem
 
-Roger's Grok Bot notices a file in the iCloud-synced "~/Desktop/Drop Box" only on its hourly poll. A file can sit in the folder until that poll.
+The Grok Bot on the deployment Mac notices a file in the iCloud-synced "~/Desktop/Drop Box" only on its hourly poll. A file can sit in the folder until that poll.
 
 ## Proposed outcome
 
@@ -18,52 +18,52 @@ Once a dropped file is fully present on the Mac, the bot wakes within seconds. T
 
 ## Affected users and systems
 
-- **Users:** Nikolay, who drops files into the folder, and Roger, the Grok Bot that handles them.
-- **Systems:** the backup-folder repository, a per-user LaunchAgent in Roger's login session, iCloud Drive for Desktop, and the bot's routine webhook.
+- **Users:** The operator, who drops files into the folder, and the Grok Bot that handles them.
+- **Systems:** the backup-folder repository, a per-user LaunchAgent in the operator login session, iCloud Drive for Desktop, and the bot's routine webhook.
 
 ## Constraints and principles
 
 - Readiness comes from an Apple file-state signal. There is no settle delay and no readiness timer.
 - The watcher never moves, renames, edits, or deletes a file.
 - The webhook URL, the webhook secret, and the watched folder live in a config file outside the repository. The repository ships an example with placeholders.
-- Agents do not install the tool on Roger.
+- Agents do not install the tool on the deployment Mac.
 - The snapshot tool stays as it is. This change does not fix snapshot bugs.
 
 ## Open questions (carried into spec.md)
 
 1. Which Authorization header does the Grok Bot routine webhook expect where a public document says?
-2. Which FSEvents flags and NSFilePresenter callbacks fire on Roger when a placeholder becomes current, and when a file is renamed into the folder?
+2. Which FSEvents flags and NSFilePresenter callbacks fire on the deployment Mac when a placeholder becomes current, and when a file is renamed into the folder?
 
 ## Original prompt (verbatim)
 
 ````
-New intent from Nikolay (relayed by Roger): live Drop Box notifications.
-Take it through spec, plan, build and review to the end. Decide yourself wherever you can; send only Nikolay-only questions to Roger, who relays them, and keep going meanwhile.
+New intent from the maintainer (relayed by the coordinator): live Drop Box notifications.
+Take it through spec, plan, build and review to the end. Decide yourself wherever you can; send maintainer-only questions to the coordinator, who relays them, and keep going meanwhile.
 
-Goal: when Nikolay drops a file into the iCloud-synced "~/Desktop/Drop Box" on Mac mini Roger, Roger's Grok Bot should be woken within seconds (today it polls hourly, then moves each file into the owning bot's folder).
+Goal: when the operator drops a file into the iCloud-synced "~/Desktop/Drop Box" on deployment Mac, The Grok Bot on the deployment Mac should be woken within seconds (today it polls hourly, then moves each file into the owning bot's folder).
 
-Build: a new Swift command-line watcher in github.com/nikolaybotev/backup-folder (repo rename can come later), run as a per-user LaunchAgent on Roger (macOS, Apple silicon). It watches the folder with macOS file system notifications and, once a dropped file is fully present locally, POSTs to a Grok Bot routine webhook.
+Build: a new Swift command-line watcher in github.com/nikolaybotev/backup-folder (repo rename can come later), run as a per-user LaunchAgent on the deployment Mac (macOS, Apple silicon). It watches the folder with macOS file system notifications and, once a dropped file is fully present locally, POSTs to a Grok Bot routine webhook.
 
 Requirements:
 1. Research first, no guessing: is there an official macOS API that reports when an iCloud Drive file has finished syncing/downloading locally (NSMetadataQuery ubiquitous item attributes, URLResourceValues ubiquitousItem* keys, NSFilePresenter/NSFileCoordinator, FileProvider)? Note: Desktop & Documents in iCloud, not an app container. Cite Apple docs; size-stability debounce only as a justified fallback.
-2. Webhook URL, webhook secret and watched folder come from a plain config file referenced by the LaunchAgent plist (no Keychain, Nikolay's choice), kept outside the repo with 0600 perms. Ship an example config only. Use the Grok Bot routine webhook request/header format if documented; otherwise make the auth header configurable and ask Roger.
-3. Notify only: never move, rename, edit or delete files. Ignore .DS_Store and hidden/temp files. Log to a file. Webhook delivery goes through a single Swift actor (WebhookNotifier, Nikolay's design), the only code that talks to the webhook; see the Webhook delivery section.
-4. Payload is a nudge (event time plus ready file names); Roger relists the folder itself.
-5. Ship install docs and a LaunchAgent plist (com.nikolay.* label, RunAtLoad/KeepAlive). Do not install on Roger; Roger and Nikolay install it. One-time macOS Desktop-access prompt is fine.
+2. Webhook URL, webhook secret and watched folder come from a plain config file referenced by the LaunchAgent plist (no Keychain, maintainer decision), kept outside the repo with 0600 perms. Ship an example config only. Use the Grok Bot routine webhook request/header format if documented; otherwise make the auth header configurable and ask the deployment Mac.
+3. Notify only: never move, rename, edit or delete files. Ignore .DS_Store and hidden/temp files. Log to a file. Webhook delivery goes through a single Swift actor (WebhookNotifier), the only code that talks to the webhook; see the Webhook delivery section.
+4. Payload is a nudge (event time plus ready file names); The bot relists the folder itself.
+5. Ship install docs and a LaunchAgent plist (com.nikolay.* label, RunAtLoad/KeepAlive). Do not install on the deployment Mac; the operator installs it. One-time macOS Desktop-access prompt is fine.
 6. Follow the repo's CI/CD, CodeQL and branch protection; tests where practical (config parsing, debounce, readiness via a mockable interface).
 7. Cursor models only: Grok 4.7 High for coordination/spec/plan/review, Composer 2.5 for build.
 
-Report to Roger when merged: PR link, chosen API and why, config format, install steps.
+Report to the coordinator when merged: PR link, chosen API and why, config format, install steps.
 
-Locations (proposed by Roger; adjust if there is a better macOS convention): config at ~/.config/drop-box-watcher/config.toml (0600, outside iCloud Desktop/Documents and outside ~/Backups), passed to the watcher by the LaunchAgent plist; log at ~/Library/Logs/drop-box-watcher.log.
+Locations (proposed by the coordinator; adjust if there is a better macOS convention): config at ~/.config/drop-box-watcher/config.toml (0600, outside iCloud Desktop/Documents and outside ~/Backups), passed to the watcher by the LaunchAgent plist; log at ~/Library/Logs/drop-box-watcher.log.
 
-Config format (Nikolay's choice): TOML at ~/.config/drop-box-watcher/config.toml. Starting sample shown to Nikolay (refine names as needed, keep it this simple):
-watch_folder = "/Users/nikolay/Desktop/Drop Box"
+Config format (maintainer decision): TOML at ~/.config/drop-box-watcher/config.toml. Starting sample for the operator (refine names as needed, keep it this simple):
+watch_folder = "/Users/USER/Desktop/Drop Box"
 [webhook] url = "...", key = "..."  (from the Grok Bot routine panel, which also shows an Authorization header format; send the key the way that header expects)
 [behavior] ignore = [".DS_Store", ".*", "*.icloud", "*.download", "*.crdownload", "*.part"]
-[log] path = "/Users/nikolay/Library/Logs/drop-box-watcher.log"
+[log] path = "/Users/USER/Library/Logs/drop-box-watcher.log"
 
-No fixed settle delays or timers (Nikolay's firm rule): readiness must come from an Apple API signal, not a wait. Settled design below.
+No fixed settle delays or timers (Firm rule): readiness must come from an Apple API signal, not a wait. Settled design below.
 
 ## Readiness design (settled; no timers, no settle delay)
 Apple has no single push event that says "iCloud sync complete" for an unsandboxed tool watching ~/Desktop. The documented way is an event trigger plus a check of per-file iCloud state:
@@ -73,11 +73,11 @@ Apple has no single push event that says "iCloud sync complete" for an unsandbox
 4. When .current (or not ubiquitous): coordinated read with NSFileCoordinator (waits for any coordinated writer and makes sure the file is downloaded), then POST the webhook once per file (keyed by path+inode+size).
 5. Ignore temp names (.DS_Store, .*, *.icloud, *.download, *.crdownload, *.part); browsers rename into place when done, and that rename triggers the post.
 Don't use NSMetadataQuery ubiquitous scopes (they need an iCloud container entitlement and don't cover Desktop & Documents), File Provider (it's for providers), or brctl/bird (private; debugging only).
-Verify on Roger and record the results in the PR: which FSEvents flags fire when a placeholder turns into a full file, and whether Finder and AirDrop writes are coordinated.
+Verify on the deployment Mac and record the results in the PR: which FSEvents flags fire when a placeholder turns into a full file, and whether Finder and AirDrop writes are coordinated.
 Sources: developer.apple.com/documentation/foundation/urlresourcevalues/ubiquitousitemdownloadingstatus, .../coreservices/file_system_events, .../foundation/nsfilecoordinator, .../foundation/filemanager/startdownloadingubiquitousitem(at:), developer.apple.com/forums/thread/87235.
 Alternative trigger to test: an NSFilePresenter registered on the watch folder (presentedSubitemDidChange). If on-device testing shows its callbacks catch iCloud materialization more reliably than FSEvents, use it as the trigger or alongside FSEvents. Either way, the status check and coordinated read stay the same.
 
-## iCloud log trace from Roger (10/29/2026, macOS 27.2, `brctl log -z -b -f --last 14h`)
+## iCloud log trace from the deployment Mac (10/29/2026, macOS 27.2, `brctl log -z -b -f --last 14h`)
 What the logs show and how it maps to the Swift API (the first mapping is from Apple's docs; the others are inferred from the logs and should be confirmed in your on-device test):
 - `dls` (dataless placeholder) flag → ubiquitousItemDownloadingStatus `.notDownloaded`.
 - `fetch-content … why:materialization` job in flight → ubiquitousItemIsDownloading == true.
@@ -88,13 +88,13 @@ What the logs show and how it maps to the Swift API (the first mapping is from A
 Rules for the watcher:
 - A file is ready when it's `.current` and not downloading. Never act on `.downloaded`, which means a stale local copy.
 - If it's `.notDownloaded`, call startDownloadingUbiquitousItem and re-check on the next change event.
-- Don't wait for isUploaded. Files dropped on Roger itself start out `.current` but not yet uploaded, and moving them doesn't need the upload to finish.
+- Don't wait for isUploaded. Files dropped on the deployment Mac itself start out `.current` but not yet uploaded, and moving them doesn't need the upload to finish.
 - At startup, log an error if the watch folder reports ubiquitousItemIsExcludedFromSync.
 - `brctl status` and `brctl dump` return Access denied (error 141). Logs shorten names to first letter, letter count and last letter (for example, `D{6}x` = "Drop Box").
 - Not observed yet: a real cloud arrival into Drop Box from another device. Test one in the PR.
-Excerpt and a read-only Swift state checker are on Roger's bot computer at /workspace/brctl-trace/ (dropbox_trace_2026-10-29_excerpt.txt, ubq_state.swift); include them when sending the brief.
+Excerpt and a read-only Swift state checker are on the bot host at /workspace/brctl-trace/ (dropbox_trace_2026-10-29_excerpt.txt, ubq_state.swift); include them when sending the brief.
 
-## Live cloud-arrival test on Roger (10/29/2026, 6:41 PM PDT)
+## Live cloud-arrival test on the deployment Mac (10/29/2026, 6:41 PM PDT)
 Confirmed: `dls` = .notDownloaded, `fetch-content why:materialization` in flight = isDownloading, then `diffs:dataless` with `dls` cleared = .current. `.downloaded` never appeared.
 Two kinds of arrival, and the watcher must handle both:
 1. A brand-new file from another device (a 10.5 MB JPG):
@@ -104,11 +104,11 @@ Two kinds of arrival, and the watcher must handle both:
    - Never act on the create event. Act when the file reads .current, after an in-place content or xattr change on the existing file.
 2. A file moved in iCloud from another folder into Drop Box: there's no download at all. It shows up as a rename into the folder (FSEvents ItemRenamed), and the file is already .current. The watcher must treat a rename into the folder as an arrival.
 Local `mv` keeps the iCloud item ID and inode (`diffs:parentID|structure`, then a brief re-upload).
-Still to confirm on Roger: the exact FSEvents flags or NSFilePresenter callback that fires when a placeholder finishes downloading.
-Excerpt is on Roger's bot computer at /workspace/brctl-trace/cloud_arrival_2026-10-29_excerpt.txt.
+Still to confirm on the deployment Mac: the exact FSEvents flags or NSFilePresenter callback that fires when a placeholder finishes downloading.
+Excerpt is on the bot host at /workspace/brctl-trace/cloud_arrival_2026-10-29_excerpt.txt.
 
 ## Head start: Google AI prototype (reference only)
-Nikolay got prototype Swift from Google AI Mode. It's saved verbatim at /workspace/briefs/google-ai-prototype.swift on Roger's bot computer (4 snippets; include it when sending the brief). Reuse what fits, but this brief's design and rules win wherever they conflict. The cleaned core below already applies the changes.
+The maintainer got prototype Swift from Google AI Mode. It's saved verbatim at /workspace/briefs/google-ai-prototype.swift on the bot host (4 snippets; include it when sending the brief). Reuse what fits, but this brief's design and rules win wherever they conflict. The cleaned core below already applies the changes.
 What it does: an NSFilePresenter on a folder, a serial OperationQueue, a coordinated read in presentedSubitemDidChange, then a switch on ubiquitousItemDownloadingStatus. `.notDownloaded`/`.downloaded` call startDownloadingUbiquitousItem, `.current` prints success, and a boot scan enumerates the folder first. It has no timers, sleeps, NSMetadataQuery, Keychain or force unwraps. It also has no webhook POST, ignore list, dedup, logging, config or plist.
 Keep:
 - The NSFilePresenter skeleton: presentedItemURL, a serial presentedItemOperationQueue, addFilePresenter/removeFilePresenter, and a strong top-level reference.
@@ -221,7 +221,7 @@ final class DropBoxWatcher: NSObject, NSFilePresenter {
     }
 }
 
-/// Nudge only; Roger relists the folder. Never log the key.
+/// Nudge only; The bot relists the folder. Never log the key.
 func postNudge(_ files: [String], url: URL, key: String, log: @escaping (String) -> Void) {
     var req = URLRequest(url: url); req.httpMethod = "POST"
     req.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization") // CHANGE: match the routine panel's header format
@@ -240,17 +240,17 @@ func postNudge(_ files: [String], url: URL, key: String, log: @escaping (String)
 // dispatchMain()    // CHANGE from the prototype's RunLoop.current.run()
 ```
 
-## Webhook delivery (Nikolay's design: one actor)
+## Webhook delivery (one actor)
 - All readiness signals (each file that reaches .current, renames into the folder, and the startup scan) are sent to one `actor WebhookNotifier`, the only code that talks to the webhook. It fully controls timing, frequency and retries.
 - No concurrent calls: at most one POST in flight or one retry loop at a time. New events that arrive during a POST or a backoff wait are merged into a pending set (deduped by path+inode+size) and never start a second call.
 - Merging: when a new event arrives during a backoff wait, cancel the wait and retry right away with the merged set. A later success sends everything pending.
 - Retries: exponential backoff (for example 1s, 2s, 4s and so on) capped at 30 seconds, retrying indefinitely until it succeeds. No cutoff after an hour, and the 11 PM sweep is the final backstop. Log each failure, but rate-limit repeated identical errors.
 - Success means 2xx. On success, clear the delivered items from the pending set. Events that arrived during that POST start a new send right away.
-- The payload is only a nudge (Roger relists the folder), so merging is safe. The payload can list the merged file names for logging, but Roger doesn't rely on them.
+- The payload is only a nudge (The bot relists the folder), so merging is safe. The payload can list the merged file names for logging, but the bot does not rely on them.
 - Readiness itself never waits. These timers exist only for retrying a failed delivery.
 - This section replaces the simple POST in the Google head-start code. Route that code through WebhookNotifier.
 
-## Install location and session (decided by Nikolay, 10/29/2026)
-- Install the watcher binary at ~/bin/drop-box-watcher. Roger will also move backup-folder from ~/Backups/bin to ~/bin in the same install window, so there's one round of macOS access prompts. Install docs and the plist should use ~/bin paths.
-- It's a per-user LaunchAgent, not a LaunchDaemon. iCloud only syncs in a logged-in session, and Roger keeps FileVault on with no auto-login. After a reboot the watcher starts at login, and its startup scan catches anything that arrived in the meantime.
+## Install location and session (decided 2026-10-29)
+- Install the watcher binary at ~/bin/drop-box-watcher. The operator will also move backup-folder from ~/Backups/bin to ~/bin in the same install window, so there's one round of macOS access prompts. Install docs and the plist should use ~/bin paths.
+- It's a per-user LaunchAgent, not a LaunchDaemon. iCloud only syncs in a logged-in session, and The deployment Mac keeps FileVault on with no auto-login. After a reboot the watcher starts at login, and its startup scan catches anything that arrived in the meantime.
 ````
