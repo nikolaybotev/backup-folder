@@ -82,7 +82,7 @@ swiftc -parse-as-library -o folder-job-tests \
 ./folder-job-tests
 ```
 
-5. Extend `tests/folder-job-tests.swift` for AC2. Accept the worked example, the explicit default strings, `60s` then `1m`, a root list inherited by a folder that omits the key, and a folder list that overrides the root. Reject empty retention, `1w`, `48h` then `2d`, `1h/8h` then `15m/16h`, and an invalid root even when a folder overrides it. The `60s` then `1m` case is an acceptance test. Assert the error strings in spec requirement 7. For the hot-reload case, hold a good `ParsedBackupConfig`, re-parse a document whose ages do not increase, call `decideBackupConfigReload`, and assert keep-and-log with prefix `config reload rejected: config parse error:`. Assert the decision is not apply. Assert an equal re-read is unchanged and has a nil log line. Do not write a `retention` key into a watcher document. The `@main` entry stays, and the file stays free of top-level code.
+5. Extend `tests/folder-job-tests.swift` for AC2. Accept the worked example, the explicit default strings, `60s/2h` then `1m/8h`, a root list inherited by a folder that omits the key, and a folder list that overrides the root. Reject empty retention, `1w`, bare `60s` then `1m`, `48h` then `2d`, `1h/8h` then `15m/16h`, and an invalid root even when a folder overrides it. Assert the error strings in spec requirement 7. For the hot-reload case, hold a good `ParsedBackupConfig`, re-parse a document whose ages do not increase, call `decideBackupConfigReload`, and assert keep-and-log with prefix `config reload rejected: config parse error:`. Assert the decision is not apply. Assert an equal re-read is unchanged and has a nil log line. Do not write a `retention` key into a watcher document. The `@main` entry stays, and the file stays free of top-level code.
 6. Extend `tests/macos-smoke.sh` for AC3. Build stays `bash scripts/build.sh` as the script already does. Use `mktemp` and mode `0600`. Seed empty directories whose names are snapshot candidates. Format those names with `en_US_POSIX` and `TimeZone.current`, the same zone the binary parses, so the age is the name and not the directory modification time. Keep every seeded age at least 60 seconds inside its tier so the run's own duration cannot cross a boundary. Exact one-second boundaries stay in the Phase 0 tests.
    - No `retention` key: a name about one hour old remains, a name about 100 days old is gone, and the new snapshot remains.
    - One config, two destinations. Root `retention` is `4h`. One folder omits the key and a seeded name about two days old is gone. The other folder sets `48h` and `1d/60d`, and the same two-day-old name remains. Both destinations gain a new snapshot.
@@ -111,7 +111,10 @@ The `macos` job runs `bash tests/macos-smoke.sh`. Do not claim that smoke passed
 
 ### Build notes (Phase 1)
 
-Added only after the phase lands.
+- `BackupConfig` parses optional root and per-folder `retention` arrays, validates per spec requirement 7, and resolves tiers onto each `FolderPair` (folder override, then root, then `defaultTiers`). Invalid root retention fails even when every folder overrides.
+- Added `decideBackupConfigReload`; `runConfigJob` uses it with `current: nil` (startup keep-and-log omits the reload prefix). `runOneFolder` passes resolved tiers and `TimeZone.current` into `namesToPrune`; the two-argument command uses `defaultTiers`.
+- AC2 equal-interval acceptance uses explicit `interval/age` strings (`60s/2h` then `1m/8h`); bare `60s` then `1m` is rejected because both ages are 60 seconds.
+- Extended `tests/folder-job-tests.swift` for AC2 and `tests/macos-smoke.sh` for default, inherited, and 15-minute bucket retention (AC3). Linux CI folder-job compile includes `Retention.swift`.
 
 ## Phase 2 — Docs
 

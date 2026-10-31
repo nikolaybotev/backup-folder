@@ -534,4 +534,164 @@ if [[ "$(count_snapshot_dirs "$SAME_REAL")" -ne 0 ]]; then
   exit 1
 fi
 
+snapshot_name_old_offset() {
+  local offset="$1"
+  swift - "$offset" <<'SWIFT'
+import Foundation
+let offset = TimeInterval(Int(CommandLine.arguments[1]) ?? 0)
+let formatter = DateFormatter()
+formatter.dateFormat = "yyyy-MM-dd_HHmm"
+formatter.locale = Locale(identifier: "en_US_POSIX")
+formatter.timeZone = TimeZone.current
+formatter.isLenient = false
+print(formatter.string(from: Date().addingTimeInterval(-offset)))
+SWIFT
+}
+
+snapshot_name_at_offset_minute() {
+  local base_offset="$1"
+  local minute="$2"
+  swift - "$base_offset" "$minute" <<'SWIFT'
+import Foundation
+let baseOffset = TimeInterval(Int(CommandLine.arguments[1]) ?? 0)
+let minute = Int(CommandLine.arguments[2]) ?? 0
+var calendar = Calendar(identifier: .gregorian)
+calendar.timeZone = TimeZone.current
+calendar.locale = Locale(identifier: "en_US_POSIX")
+let anchor = Date().addingTimeInterval(-baseOffset)
+let hour = calendar.component(.hour, from: anchor)
+let day = calendar.dateComponents([.year, .month, .day], from: anchor)
+guard let instant = calendar.date(from: DateComponents(
+    year: day.year, month: day.month, day: day.day, hour: hour, minute: minute, second: 0
+)) else {
+    fatalError("bad instant")
+}
+let formatter = DateFormatter()
+formatter.dateFormat = "yyyy-MM-dd_HHmm"
+formatter.locale = Locale(identifier: "en_US_POSIX")
+formatter.timeZone = TimeZone.current
+formatter.isLenient = false
+print(formatter.string(from: instant))
+SWIFT
+}
+
+seed_snapshot_dir() {
+  mkdir -p "$1/$2"
+}
+
+RET_SRC="$(mktemp -d)"
+RET_DEST="$(mktemp -d)"
+printf 'retention-default\n' >"$RET_SRC/a.txt"
+one_hour_old="$(snapshot_name_old_offset $((3600 + 120)))"
+ancient_old="$(snapshot_name_old_offset $((100 * 86400 + 120)))"
+seed_snapshot_dir "$RET_DEST" "$one_hour_old"
+seed_snapshot_dir "$RET_DEST" "$ancient_old"
+run_job_config 600 "$(cat <<EOF
+[[folder]]
+source = "$RET_SRC"
+dest = "$RET_DEST"
+EOF
+)"
+if [[ "$JOB_RC" -ne 0 ]]; then
+  echo "Default retention config job failed with ${JOB_RC}" >&2
+  cat "$CONFIG_TMP/job.err" >&2 || true
+  exit 1
+fi
+if [[ ! -d "$RET_DEST/$one_hour_old" ]]; then
+  echo "Expected ~1h snapshot to remain under default retention" >&2
+  ls -la "$RET_DEST" >&2
+  exit 1
+fi
+if [[ -d "$RET_DEST/$ancient_old" ]]; then
+  echo "Expected ~100d snapshot to be pruned under default retention" >&2
+  ls -la "$RET_DEST" >&2
+  exit 1
+fi
+if [[ "$(count_snapshot_dirs "$RET_DEST")" -lt 2 ]]; then
+  echo "Expected new snapshot plus kept ~1h name under default retention" >&2
+  ls -la "$RET_DEST" >&2
+  exit 1
+fi
+
+INH_SRC="$(mktemp -d)"
+INH_SRC2="$(mktemp -d)"
+INH_DEST="$(mktemp -d)"
+INH_DEST2="$(mktemp -d)"
+printf 'inh-a\n' >"$INH_SRC/a.txt"
+printf 'inh-b\n' >"$INH_SRC2/a.txt"
+two_day_old="$(snapshot_name_old_offset $((2 * 86400 + 120)))"
+seed_snapshot_dir "$INH_DEST" "$two_day_old"
+seed_snapshot_dir "$INH_DEST2" "$two_day_old"
+run_job_config 600 "$(cat <<EOF
+retention = ["4h"]
+[[folder]]
+source = "$INH_SRC"
+dest = "$INH_DEST"
+
+[[folder]]
+source = "$INH_SRC2"
+dest = "$INH_DEST2"
+retention = ["48h", "1d/60d"]
+EOF
+)"
+if [[ "$JOB_RC" -ne 0 ]]; then
+  echo "Inherited retention config job failed with ${JOB_RC}" >&2
+  cat "$CONFIG_TMP/job.err" >&2 || true
+  exit 1
+fi
+if [[ -d "$INH_DEST/$two_day_old" ]]; then
+  echo "Root 4h retention should prune ~2d snapshot on inheriting folder" >&2
+  ls -la "$INH_DEST" >&2
+  exit 1
+fi
+if [[ ! -d "$INH_DEST2/$two_day_old" ]]; then
+  echo "Folder default tiers should keep ~2d snapshot" >&2
+  ls -la "$INH_DEST2" >&2
+  exit 1
+fi
+if [[ "$(count_snapshot_dirs "$INH_DEST")" -ne 1 ]]; then
+  echo "Inheriting folder should have only the new snapshot after pruning the seed" >&2
+  ls -la "$INH_DEST" >&2
+  exit 1
+fi
+if [[ "$(count_snapshot_dirs "$INH_DEST2")" -ne 2 ]]; then
+  echo "Override folder should keep the seeded snapshot and gain a new one" >&2
+  ls -la "$INH_DEST2" >&2
+  exit 1
+fi
+if ! grep -q 'OK snapshot' "$INH_DEST/backup.log" || ! grep -q 'OK snapshot' "$INH_DEST2/backup.log"; then
+  echo "Both destinations should log a new snapshot" >&2
+  exit 1
+fi
+
+BUCKET_SRC="$(mktemp -d)"
+BUCKET_DEST="$(mktemp -d)"
+printf 'bucket\n' >"$BUCKET_SRC/a.txt"
+bucket_early="$(snapshot_name_at_offset_minute $((6 * 3600 + 120)) 2)"
+bucket_late="$(snapshot_name_at_offset_minute $((6 * 3600 + 120)) 7)"
+seed_snapshot_dir "$BUCKET_DEST" "$bucket_early"
+seed_snapshot_dir "$BUCKET_DEST" "$bucket_late"
+run_job_config 600 "$(cat <<EOF
+[[folder]]
+source = "$BUCKET_SRC"
+dest = "$BUCKET_DEST"
+retention = ["4h", "15m/8h", "1d/30d"]
+EOF
+)"
+if [[ "$JOB_RC" -ne 0 ]]; then
+  echo "15-minute bucket retention job failed with ${JOB_RC}" >&2
+  cat "$CONFIG_TMP/job.err" >&2 || true
+  exit 1
+fi
+if [[ ! -d "$BUCKET_DEST/$bucket_early" ]]; then
+  echo "Earlier 15-minute bucket snapshot should remain" >&2
+  ls -la "$BUCKET_DEST" >&2
+  exit 1
+fi
+if [[ -d "$BUCKET_DEST/$bucket_late" ]]; then
+  echo "Later snapshot in the same 15-minute bucket should be pruned" >&2
+  ls -la "$BUCKET_DEST" >&2
+  exit 1
+fi
+
 echo "macos-smoke: build OK, clonefile probe OK, snapshot OK, COW OK"
