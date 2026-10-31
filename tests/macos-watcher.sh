@@ -359,3 +359,117 @@ if [[ "$post_count" -lt 2 ]]; then
 fi
 
 echo "macos-watcher: notify OK"
+
+log_byte_count() {
+  wc -c < "$1" | tr -d ' '
+}
+
+assert_watcher_alive() {
+  if ! kill -0 "$WATCHER_PID" 2>/dev/null; then
+    echo "macos-watcher: watcher exited during config reload" >&2
+    print_watcher_diagnostics
+    exit 1
+  fi
+}
+
+wait_for_new_log_line() {
+  local needle="$1"
+  local log_path="$2"
+  local start_size="$3"
+  local timeout_secs="${4:-10}"
+  local deadline=$((SECONDS + timeout_secs))
+  while (( SECONDS < deadline )); do
+    if ! kill -0 "$WATCHER_PID" 2>/dev/null; then
+      return 1
+    fi
+    if python3 - "$log_path" "$needle" "$start_size" <<'PY'
+import sys
+path, needle, start = sys.argv[1:]
+data = open(path, "rb").read()
+sys.exit(0 if needle.encode() in data[int(start):] else 1)
+PY
+    then
+      return 0
+    fi
+    sleep 0.1
+  done
+  return 1
+}
+
+write_watcher_config() {
+  local watch_folder="$1"
+  local mode="$2"
+  cat >"$CONFIG" <<EOF
+watch_folder = "${watch_folder}"
+[webhook]
+url = "http://127.0.0.1:${PORT}/"
+key = "${TEST_KEY}"
+[behavior]
+ignore = [".DS_Store", ".*", "*.icloud", "*.download", "*.crdownload", "*.part"]
+[log]
+path = "${LOG}"
+EOF
+  chmod "$mode" "$CONFIG"
+}
+
+reload_size="$(log_byte_count "$LOG")"
+cat >"$CONFIG" <<'EOF'
+not valid watcher config
+EOF
+chmod 0600 "$CONFIG"
+if ! wait_for_new_log_line "config reload rejected" "$LOG" "$reload_size" 10; then
+  echo "macos-watcher: invalid config did not log config reload rejected" >&2
+  print_watcher_diagnostics
+  exit 1
+fi
+assert_watcher_alive
+posts_before_reload="$(wc -l < "$POSTS" | tr -d ' ')"
+printf 'still-watching' >"$LINK_WATCH/reload-note.txt"
+if ! poll_for_files '["reload-note.txt"]' "$posts_before_reload"; then
+  echo "macos-watcher: old folder did not notify after invalid config" >&2
+  cat "$POSTS" 2>/dev/null >&2 || true
+  print_watcher_diagnostics
+  exit 1
+fi
+
+reload_size="$(log_byte_count "$LOG")"
+chmod 0644 "$CONFIG"
+if ! wait_for_new_log_line "config reload rejected" "$LOG" "$reload_size" 10; then
+  echo "macos-watcher: mode 0644 did not log config reload rejected" >&2
+  print_watcher_diagnostics
+  exit 1
+fi
+assert_watcher_alive
+posts_before_mode="$(wc -l < "$POSTS" | tr -d ' ')"
+printf 'still-watching' >"$LINK_WATCH/reload-mode.txt"
+if ! poll_for_files '["reload-mode.txt"]' "$posts_before_mode"; then
+  echo "macos-watcher: old folder did not notify after mode 0644" >&2
+  cat "$POSTS" 2>/dev/null >&2 || true
+  print_watcher_diagnostics
+  exit 1
+fi
+
+WATCH_TWO="$TMPROOT/watch-two"
+mkdir -p "$WATCH_TWO"
+reload_size="$(log_byte_count "$LOG")"
+write_watcher_config "$WATCH_TWO" 600
+if ! wait_for_new_log_line "config reloaded" "$LOG" "$reload_size" 10; then
+  echo "macos-watcher: valid second folder did not log config reloaded" >&2
+  print_watcher_diagnostics
+  exit 1
+fi
+if ! wait_for_new_log_line "fsevents stream started" "$LOG" "$reload_size" 10; then
+  echo "macos-watcher: reload did not start the second folder" >&2
+  print_watcher_diagnostics
+  exit 1
+fi
+assert_watcher_alive
+posts_before_two="$(wc -l < "$POSTS" | tr -d ' ')"
+printf 'second-folder' >"$WATCH_TWO/second.txt"
+if ! poll_for_files '["second.txt"]' "$posts_before_two"; then
+  echo "macos-watcher: second folder did not notify" >&2
+  cat "$POSTS" 2>/dev/null >&2 || true
+  print_watcher_diagnostics
+  exit 1
+fi
+assert_watcher_alive
