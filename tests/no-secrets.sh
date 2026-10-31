@@ -151,6 +151,47 @@ workflow_banned = re.compile(
 
 violations: list[str] = []
 
+PROMPT_REL = "intent/one-backup-job/intent.md"
+PROMPT_HEADING = "## Original prompt (verbatim)"
+PROMPT_PREFIX = "hourly at "
+
+def port_suffix_allowed(rel_posix: str, text: str, match: re.Match) -> bool:
+    """The captured prompt's minute notation, and nothing else."""
+    if rel_posix != PROMPT_REL or match.group(1) != "00":
+        return False
+    prompt_at = text.find(PROMPT_HEADING)
+    start = match.start()
+    if prompt_at == -1 or start <= prompt_at:
+        return False
+    prefix_at = start - len(PROMPT_PREFIX)
+    if prefix_at < 0:
+        return False
+    return text[prefix_at:start] == PROMPT_PREFIX
+
+def has_bad_port(rel_posix: str, text: str) -> bool:
+    return any(
+        not port_suffix_allowed(rel_posix, text, match)
+        for match in port_suffix.finditer(text)
+    )
+
+scope_cases = [
+    (PROMPT_REL, f"{PROMPT_HEADING}\nhourly at :00.\n", False),
+    (PROMPT_REL, "hourly at :00.\n", True),
+    ("docs/setup.md", f"{PROMPT_HEADING}\nhourly at :00.\n", True),
+    (PROMPT_REL, f"{PROMPT_HEADING}\nlisten :00\n", True),
+    (PROMPT_REL, f"{PROMPT_HEADING}\n:00\n", True),
+    (PROMPT_REL, f"{PROMPT_HEADING}\nhourly at\t:00\n", True),
+    (PROMPT_REL, f"{PROMPT_HEADING}\nhourly at :80\n", True),
+    (PROMPT_REL, f"{PROMPT_HEADING}\nhourly at :51820\n", True),
+    (PROMPT_REL, f"{PROMPT_HEADING}\nhourly at :00.\nlisten :00\n", True),
+]
+for rel_posix, sample, want_bad in scope_cases:
+    if not list(port_suffix.finditer(sample)):
+        sys.exit(f"port scope case had no match: {sample!r}")
+    got_bad = has_bad_port(rel_posix, sample)
+    if got_bad != want_bad:
+        sys.exit(f"port scope case {sample!r} in {rel_posix}: bad={got_bad}, want {want_bad}")
+
 for path in paths:
     try:
         text = path.read_text(encoding="utf-8", errors="replace")
@@ -173,7 +214,7 @@ for path in paths:
             if re.fullmatch(r"[0-9a-fA-F:]+", frag) and ":" in frag:
                 violations.append(f"{rel}: IPv6 literal ({frag})")
                 break
-    if port_suffix.search(text):
+    if has_bad_port(rel.as_posix(), text):
         violations.append(f"{rel}: numeric port suffix")
     if rel.parts[0:2] == (".github", "workflows") and workflow_banned.search(text):
         violations.append(f"{rel}: banned workflow content (install-tools, launchctl, or Backups)")
