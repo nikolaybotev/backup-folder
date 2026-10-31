@@ -59,6 +59,8 @@ jobs:
           assert_built_minute "backup-folder --version --verbose" "$(./backup-folder --version --verbose)" backup-folder v9.9.9 "$head_sha"
           assert_built_minute "drop-box-watcher --version" "$("$watcher_bin" --version)" drop-box-watcher v9.9.9 "$short_sha"
           assert_built_minute "drop-box-watcher --version --verbose" "$("$watcher_bin" --version --verbose)" drop-box-watcher v9.9.9 "$head_sha"
+          bash scripts/release-sha256sums.sh write ./backup-folder "$watcher_bin" SHA256SUMS
+          bash scripts/release-sha256sums.sh verify-artifacts ./backup-folder "$watcher_bin" SHA256SUMS
       - name: Build entry static check
         run: bash tests/build-entry-test.sh
       - name: Build and APFS smoke test
@@ -71,6 +73,8 @@ jobs:
         run: bash tests/no-secrets.sh
       - name: Release workflow static check
         run: bash tests/release-workflow.sh
+      - name: Release SHA256SUMS layout test
+        run: bash tests/release-sha256sums-test.sh
       - name: Release version static check
         run: bash tests/release-version-test.sh
       - name: Install tools script test
@@ -94,6 +98,8 @@ jobs:
         run: bash tests/release-version-test.sh
       - name: Release workflow static check
         run: bash tests/release-workflow.sh
+      - name: Release SHA256SUMS layout test
+        run: bash tests/release-sha256sums-test.sh
       - name: Install Swift toolchain
         run: |
           set -euo pipefail
