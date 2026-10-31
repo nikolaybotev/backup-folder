@@ -1,11 +1,13 @@
 # Example only. Copy to ~/.config/backup-folder/config.toml, use mode 0600, and replace placeholders.
 # Do not commit the real file.
 # pins.txt in that directory is a different file.
+# Example tier list (not the default): retention = ["4h", "15m/8h", "30m/16h", "1h/24h", "1d/30d"]
 # concurrency = 2
 
 [[folder]]
 source = "/ABS/SOURCE"
 dest = "/ABS/BACKUP-DIR"
+# retention = ["48h", "1d/60d"]
 
 [[folder]]
 source = "/ABS/SOURCE-2"

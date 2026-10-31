@@ -29,11 +29,17 @@ bash scripts/build.sh
 
 ## Retention
 
-After each snapshot the tool prunes `dest`, considering snapshot directories in chronological order. Both `yyyy-MM-dd_HHmm` and `yyyy-MM-dd_HHmmss-<pid>` names are candidates:
+After each snapshot the tool prunes `dest`, considering snapshot directories in chronological order. Both `yyyy-MM-dd_HHmm` and `yyyy-MM-dd_HHmmss-<pid>` names are candidates.
+
+When the config omits `retention`, the tool uses this built-in policy:
 
 - Every snapshot from the last 48 hours is kept.
 - After that, one snapshot per day is kept for 60 days (the earliest that day).
 - Anything older than 60 days is deleted, as is any extra snapshot on a day that already has its daily keeper.
+
+The config may set `retention` once at the top level and again on a `[[folder]]` entry as an array of tier strings, for example `retention = ["48h", "1d/60d"]`. A folder entry overrides the file-level list for that folder only. When both are absent, the built-in policy above applies. Each element is either an age (`4h`, `48h`) that keeps every snapshot until that age, or `interval/age` (`15m/8h`, `1d/60d`) that keeps the earliest snapshot in each interval bucket until that age. Units are `s`, `m`, `h`, and `d`.
+
+Example (not the default): `retention = ["4h", "15m/8h", "30m/16h", "1h/24h", "1d/30d"]`. With a snapshot every five minutes, that list holds 117 snapshots per folder (48 + 16 + 16 + 8 + 29).
 
 ## How it runs
 
@@ -42,7 +48,7 @@ backup-folder /abs/source /abs/backup-dir
 backup-folder --config /abs/config.toml
 ```
 
-The two-argument command snapshots one folder. `--config` reads a file of source and destination pairs and backs up each of them. One LaunchAgent, label `com.nikolaybotev.backup`, runs that command hourly at minute 0. The template is [`launchd/backup-folder.plist.template`](launchd/backup-folder.plist.template). Replace each `/ABS/PATH/TO/HOME` placeholder. The example config is [`backup-folder.example.toml`](backup-folder.example.toml). Copy the filled plist to `~/Library/LaunchAgents/` and load it with `launchctl bootstrap gui/$(id -u)`. Loading LaunchAgents on the Mac is manual; CI does not install them. Moving from one agent per folder is described in [`docs/backup-job.md`](docs/backup-job.md).
+The two-argument command snapshots one folder. `--config` reads a file of source and destination pairs and backs up each of them. One LaunchAgent, label `com.nikolaybotev.backup`, runs that command hourly at minute 0. The template is [`launchd/backup-folder.plist.template`](launchd/backup-folder.plist.template). Replace each `/ABS/PATH/TO/HOME` placeholder. A five-minute cadence is launchd `StartInterval` 300 or a `StartCalendarInterval` you write; the template in this repo still starts hourly at minute 0. The example config is [`backup-folder.example.toml`](backup-folder.example.toml). Copy the filled plist to `~/Library/LaunchAgents/` and load it with `launchctl bootstrap gui/$(id -u)`. Loading LaunchAgents on the Mac is manual; CI does not install them. Moving from one agent per folder is described in [`docs/backup-job.md`](docs/backup-job.md).
 
 After an in-place swap of `~/bin/backup-folder` while that agent stays loaded, launchd may refuse the next spawn. Run `launchctl kickstart gui/$(id -u)/com.nikolaybotev.backup` once and check that job's log for a clean run.
 

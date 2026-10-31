@@ -139,4 +139,7 @@ Healthy lines: `no-secrets: all checks passed`, `setup-docs: all checks passed`.
 
 ### Build notes (Phase 2)
 
-Added only after the phase lands.
+- README retention section keeps the three default bullets and adds tier syntax, root and per-folder override rules, the worked example labeled as an example, the 117 breakdown (48 + 16 + 16 + 8 + 29), and five-minute launchd settings with the template still hourly at minute 0; the existing `launchctl kickstart` paragraph in "How it runs" is unchanged.
+- `backup-folder.example.toml` comments the worked array at the top and a per-folder override; no active `retention` key.
+- `docs/backup-job.md` notes that an absent `retention` key uses the default policy on existing destinations.
+- `AGENTS.md` records optional root and per-folder retention and three agent expectations for template schedule, watcher config, and code default.
