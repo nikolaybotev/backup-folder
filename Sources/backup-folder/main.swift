@@ -23,25 +23,20 @@ private func usage() -> Never {
     exit(2)
 }
 
-@main
-struct BackupFolderCommand {
-    static func main() async {
-        let args = CommandLine.arguments
-        if args.contains("--version") {
-            let verbose = args.contains("--verbose")
-            print(BuildStamp.versionLine(productName: "backup-folder", verbose: verbose))
-            exit(0)
-        }
-        if args.count == 3, args[1] == "--config" {
-            guard args[2].hasPrefix("/") else { usage() }
-            exit(await runConfigJob(args[2]))
-        }
-        if args.count == 3, args[1].hasPrefix("/"), args[2].hasPrefix("/") {
-            exit(runCommandLineFolder(rawSource: args[1], rawDest: args[2]))
-        }
-        usage()
-    }
+let args = CommandLine.arguments
+if args.contains("--version") {
+    let verbose = args.contains("--verbose")
+    print(BuildStamp.versionLine(productName: "backup-folder", verbose: verbose))
+    exit(0)
 }
+if args.count == 3, args[1] == "--config" {
+    guard args[2].hasPrefix("/") else { usage() }
+    exit(await runConfigJob(args[2]))
+}
+if args.count == 3, args[1].hasPrefix("/"), args[2].hasPrefix("/") {
+    exit(runCommandLineFolder(rawSource: args[1], rawDest: args[2]))
+}
+usage()
 
 private func runConfigJob(_ path: String) async -> Int32 {
     guard configPermissionsAcceptable(at: path) else {
