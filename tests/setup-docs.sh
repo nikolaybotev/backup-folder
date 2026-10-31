@@ -86,6 +86,7 @@ setup_anchors=(
   'ensure-backup-dirs.sh'
   'home-mirrored'
   'com.nikolay.backup.NAME'
+  'drop-box-watcher.plist.template'
   'Drop Box'
   'config.toml'
   '.config/backup-folder/pins.txt'
@@ -98,7 +99,7 @@ restore_anchors=(
   'Keep Downloaded'
   'config.toml'
   'install-tools.sh'
-  'file-access-policy'
+  'file-access policy'
   '.config/backup-folder/pins.txt'
   'pins.txt.example'
 )

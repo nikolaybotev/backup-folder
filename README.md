@@ -2,7 +2,7 @@
 
 Small macOS command-line tool that snapshots a folder with APFS copy-on-write clones.
 
-This repo is also the setup hub for the Mac. First-time setup and restore after data loss are documented in [`docs/setup.md`](docs/setup.md) and [`docs/restore.md`](docs/restore.md). The maintainer runs those checklists; CI does not install them on the deployment Mac.
+First-time setup and restore after data loss are documented in [`docs/setup.md`](docs/setup.md) and [`docs/restore.md`](docs/restore.md). Run those checklists on your Mac; CI does not install them.
 
 ```
 backup-folder <src> <dest>
@@ -36,7 +36,7 @@ After each snapshot the tool prunes `dest`, considering snapshot directories in 
 
 ## How it runs
 
-Run one LaunchAgent per folder. Each agent invokes `~/bin/backup-folder` hourly at minute 0 with that folder's source and home-mirrored backup directory. The template label is `com.nikolay.backup.NAME` (replace `NAME`, `USER`, `/ABS/SOURCE`, and `/ABS/BACKUP-DIR` in [`launchd/backup-folder.plist.template`](launchd/backup-folder.plist.template)). Copy the filled plist to `~/Library/LaunchAgents/` and load it with `launchctl bootstrap gui/$(id -u)`. Loading agents on the Mac is manual; CI does not install them.
+Run one LaunchAgent per folder. Each agent invokes `~/bin/backup-folder` hourly at minute 0 with that folder's source and home-mirrored backup directory. The template label is `com.nikolay.backup.NAME` (replace `NAME`, `USER`, `/ABS/SOURCE`, and `/ABS/BACKUP-DIR` in [`launchd/backup-folder.plist.template`](launchd/backup-folder.plist.template)). Copy the filled plist to `~/Library/LaunchAgents/` and load it with `launchctl bootstrap gui/$(id -u)`. Loading LaunchAgents on the Mac is manual; CI does not install them.
 
 ## macOS for a real build and test
 
@@ -46,15 +46,15 @@ Cloud agents boot the default image and run [`.cursor/install.sh`](.cursor/insta
 
 ## drop-box-watcher
 
-`drop-box-watcher` watches one folder (the deployment Mac's iCloud **Drop Box** folder on Desktop; Apple's iCloud exclude list uses the name `Dropbox`, which is not this folder). When a file is fully present on disk, it POSTs a nudge to a Grok Bot routine webhook. The deployment Mac lists the folder and moves files; the watcher does not.
+`drop-box-watcher` watches one folder (the iCloud **Drop Box** folder on Desktop; Apple's iCloud exclude list uses the name `Dropbox`, which is not this folder). When a file is fully present on disk, it POSTs a nudge to a Grok Bot routine webhook. List the folder and move files; the watcher does not.
 
 Example config: [`drop-box-watcher.example.toml`](drop-box-watcher.example.toml). LaunchAgent template: [`launchd/drop-box-watcher.plist.template`](launchd/drop-box-watcher.plist.template) (label `com.nikolay.drop-box-watcher`).
 
-**Manual install on a Mac (the maintainer or the deployment Mac; not CI or cloud agents):**
+**Manual install on a Mac (not CI or cloud agents):**
 
 1. Put the release or locally built binary at `$HOME/bin/drop-box-watcher`.
 2. Copy the example config to `$HOME/.config/drop-box-watcher/config.toml`, replace every `/ABS/PATH/TO/HOME` placeholder with your absolute home path, set the real webhook URL and routine key, and run `chmod 0600` on that file. Keep this directory outside iCloud Desktop and Documents and outside `~/Backups`.
 3. Copy the filled plist to `$HOME/Library/LaunchAgents/com.nikolay.drop-box-watcher.plist`, replacing the same absolute-path placeholders (including the binary, config, and log paths in `ProgramArguments`, `StandardOutPath`, and `StandardErrorPath`).
 4. Load the agent: `launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.nikolay.drop-box-watcher.plist`.
 
-The first run may prompt for Desktop folder access. Merging to `main` does not publish a binary; the maintainer pushes a `v*` tag when a GitHub release should exist. CI and agents do not copy the binary into `~/bin`, write the real config, or load this LaunchAgent.
+The first run may prompt for Desktop folder access. A push to `main` runs job `publish` in `.github/workflows/release.yml`, which can push the next patch tag and publish a GitHub release; agents do not push a tag by hand. CI and agents do not copy the binary into `~/bin`, write the real config, or load this LaunchAgent.
