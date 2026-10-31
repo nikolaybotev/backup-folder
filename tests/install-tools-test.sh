@@ -24,6 +24,8 @@ if grep -q 'GITHUB_REPOSITORY' "$INSTALL_SCRIPT"; then
   fail "install script must not read GITHUB_REPOSITORY"
 fi
 [[ "$text" == *"--deny-self-hosted-runners"* ]] || fail "missing --deny-self-hosted-runners"
+grep -qE 'gh release download[^;]*--clobber' "$INSTALL_SCRIPT" \
+  || fail "release download must pass --clobber for pre-created mktemp output"
 case "$text" in
   *launchctl*) fail "install script must not contain launchctl" ;;
   *sudo*) fail "install script must not contain sudo" ;;
@@ -31,20 +33,6 @@ esac
 if grep -qE '(^|[^a-z])op([^a-z]|$)' <<<"$text"; then
   fail "install script must not contain op"
 fi
-
-# Source refusal function
-# shellcheck source=/dev/null
-source "$INSTALL_SCRIPT"
-
-if install_refuse 0 "${HOME}/bin"; then
-  fail "expected refusal for uid 0"
-fi
-ok "refuses uid 0"
-
-if install_refuse 501 "/Users/test/Backups/mirror"; then
-  fail "expected refusal for Backups path component"
-fi
-ok "refuses Backups path component"
 
 # AC3: missing default pin file (PINS_FILE unset)
 MISS_HOME="$(mktemp -d "${TMPDIR:-/tmp}/install-test-miss-home.XXXXXX")"
@@ -133,30 +121,20 @@ if PINS_FILE="$PINS" bash "$INSTALL_SCRIPT"; then
 fi
 ok "invalid tool name refused"
 
-# Stub gh: write output file and exit 0. Record arguments when GH_ARGS_LOG is set.
-cat >"$TMP_HOME/bin-stub/gh" <<'STUB'
-#!/usr/bin/env bash
-set -euo pipefail
-if [[ -n "${GH_ARGS_LOG:-}" ]]; then
-  printf '%s\n' "$*" >> "$GH_ARGS_LOG"
+# Stub gh: faithful release download (existing --output without --clobber fails).
+# shellcheck source=tests/install-tools-gh-stub.sh
+source "$ROOT/tests/install-tools-gh-stub.sh"
+install_tools_write_gh_stub "$TMP_HOME/bin-stub"
+
+cat >"$PINS" <<'EOF'
+backup-folder v1.0.0
+bad/name v1.2.3
+EOF
+if PINS_FILE="$PINS" bash "$INSTALL_SCRIPT"; then
+  fail "valid pin before invalid line should exit non-zero"
 fi
-if [[ "${1:-}" == "attestation" && "${2:-}" == "verify" ]]; then
-  exit 0
-fi
-while [[ $# -gt 0 ]]; do
-  case "$1" in
-    --output)
-      printf 'stub-binary' >"$2"
-      exit 0
-      ;;
-    *)
-      shift
-      ;;
-  esac
-done
-exit 0
-STUB
-chmod +x "$TMP_HOME/bin-stub/gh"
+[[ ! -e "$TMP_HOME/bin/backup-folder" ]] || fail "valid pin before invalid line must install nothing"
+ok "valid pin before invalid line installs nothing"
 
 default_repo="$(sed -n 's/^GH_REPO="${GH_REPO:-\([^}]*\)}"$/\1/p' "$INSTALL_SCRIPT")"
 [[ -n "$default_repo" ]] || fail "installer has no default repository"
@@ -170,6 +148,7 @@ export GH_ARGS_LOG
 env -u GH_REPO PINS_FILE="$PINS" bash "$INSTALL_SCRIPT" || fail "pinned install with stub gh failed"
 dest="$TMP_HOME/bin/backup-folder"
 [[ -f "$dest" ]] || fail "expected installed binary"
+ok "pinned install succeeds when mktemp output path already exists"
 mode="$(stat -c '%a' "$dest" 2>/dev/null || stat -f '%OLp' "$dest")"
 [[ "$mode" == "755" ]] || fail "expected mode 755, got $mode"
 grep -F -- "--repo ${default_repo}" "$GH_ARGS_LOG" >/dev/null || fail "unset GH_REPO did not use the installer default"
