@@ -37,7 +37,14 @@ enum BuildStampInfo {
 SWIFT
 
 export MACOSX_DEPLOYMENT_TARGET=12.0
-swift build -c release
+# CodeQL's Swift tracer runs as osx64 and otherwise selects an x86_64 link
+# destination while Package.swift compiles arm64; --arch arm64 keeps link and
+# objects on the same architecture (see GitHub CodeQL Swift build guidance).
+if [[ -n "${CODEQL_RUNNER:-}" ]]; then
+  swift build -c release --arch arm64
+else
+  swift build -c release
+fi
 
 cp .build/release/backup-folder "$ROOT/backup-folder"
 
