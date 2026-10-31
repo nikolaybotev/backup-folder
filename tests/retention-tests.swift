@@ -137,6 +137,99 @@ struct RetentionTests {
             expect(del.contains(oldN) && del.contains(newN) && !del.contains(early), "same day older than 48h keeps earliest only")
         }
 
+        // 15-minute civil buckets with a +7 minute offset; both local times kept in different buckets.
+        do {
+            let east7 = TimeZone(secondsFromGMT: 7 * 60)!
+            let parserEast = makeOldNameParser(timeZone: east7)
+            var calEast = Calendar(identifier: .gregorian)
+            calEast.timeZone = east7
+            calEast.locale = Locale(identifier: "en_US_POSIX")
+            let n1010 = name(2026, 10, 30, 0, 10)
+            let n1020 = name(2026, 10, 30, 0, 20)
+            let t1010 = calEast.date(from: DateComponents(year: 2026, month: 10, day: 30, hour: 0, minute: 10))!
+            let nowEast = t1010.addingTimeInterval(5 * 3600 + 600)
+            let tiers15m: [RetentionTier] = [
+                RetentionTier(intervalSeconds: 0, ageSeconds: 4 * 3600),
+                RetentionTier(intervalSeconds: 15 * 60, ageSeconds: 8 * 3600),
+            ]
+            let del = SnapshotRetention.namesToPrune(
+                sortedCandidateNames: [n1010, n1020],
+                now: nowEast,
+                parseInstant: parserEast,
+                tiers: tiers15m,
+                timeZone: east7
+            )
+            expect(del.isEmpty, "15m tier: local 00:10 and 00:20 both kept")
+        }
+
+        // Same 15-minute bucket: later name pruned.
+        do {
+            let east7 = TimeZone(secondsFromGMT: 7 * 60)!
+            let parserEast = makeOldNameParser(timeZone: east7)
+            var calEast = Calendar(identifier: .gregorian)
+            calEast.timeZone = east7
+            calEast.locale = Locale(identifier: "en_US_POSIX")
+            let early = name(2026, 10, 30, 0, 10)
+            let late = name(2026, 10, 30, 0, 12)
+            let tEarly = calEast.date(from: DateComponents(year: 2026, month: 10, day: 30, hour: 0, minute: 10))!
+            let nowEast = tEarly.addingTimeInterval(5 * 3600 + 600)
+            let tiers15m: [RetentionTier] = [
+                RetentionTier(intervalSeconds: 0, ageSeconds: 4 * 3600),
+                RetentionTier(intervalSeconds: 15 * 60, ageSeconds: 8 * 3600),
+            ]
+            let del = SnapshotRetention.namesToPrune(
+                sortedCandidateNames: [early, late],
+                now: nowEast,
+                parseInstant: parserEast,
+                tiers: tiers15m,
+                timeZone: east7
+            )
+            expect(del == [late], "15m tier: same bucket drops later name")
+        }
+
+        // Default daily tier: two date prefixes kept when both sit between 48h and 60d (7h west).
+        do {
+            let west7 = TimeZone(secondsFromGMT: -7 * 3600)!
+            let parserWest = makeOldNameParser(timeZone: west7)
+            var calWest = Calendar(identifier: .gregorian)
+            calWest.timeZone = west7
+            calWest.locale = Locale(identifier: "en_US_POSIX")
+            let a = "2026-10-29_2350"
+            let b = "2026-10-30_0010"
+            let ta = parserWest(a)!
+            let tb = parserWest(b)!
+            let nowWest = ta.addingTimeInterval(SnapshotRetention.keepFreshSeconds + 3600)
+            expect(nowWest.timeIntervalSince(tb) < SnapshotRetention.keepFreshSeconds + 3600, "west7 ages inside window")
+            expect(nowWest.timeIntervalSince(tb) > SnapshotRetention.keepFreshSeconds, "west7 both past keep-all")
+            let del = SnapshotRetention.namesToPrune(
+                sortedCandidateNames: [a, b],
+                now: nowWest,
+                parseInstant: parserWest,
+                timeZone: west7
+            )
+            expect(del.isEmpty, "default tiers: cross-midnight prefixes both kept")
+        }
+
+        // 2-day civil buckets in UTC: 10-30 and 10-31 share; 10-29 is previous bucket.
+        do {
+            let tiers2d: [RetentionTier] = [
+                RetentionTier(intervalSeconds: 0, ageSeconds: Int(SnapshotRetention.keepFreshSeconds)),
+                RetentionTier(intervalSeconds: 2 * 86400, ageSeconds: Int(SnapshotRetention.maxAgeBeforeDayRuleSeconds)),
+            ]
+            let d29 = name(2026, 10, 29, 12, 0)
+            let d30 = name(2026, 10, 30, 12, 0)
+            let d31 = name(2026, 10, 31, 12, 0)
+            let now2d = instant(2026, 10, 31, 12, 0).addingTimeInterval(SnapshotRetention.keepFreshSeconds + 1)
+            let del = SnapshotRetention.namesToPrune(
+                sortedCandidateNames: [d29, d30, d31],
+                now: now2d,
+                parseInstant: parser,
+                tiers: tiers2d,
+                timeZone: tz
+            )
+            expect(del == [d31], "2d bucket: keep 10-29 and earliest of 10-30/10-31 pair")
+        }
+
         if failures > 0 {
             fputs("\(failures) test(s) failed\n", stderr)
             exit(1)

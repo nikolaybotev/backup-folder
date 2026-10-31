@@ -56,7 +56,9 @@ Healthy line: `retention-tests: OK`.
 
 ### Build notes (Phase 0)
 
-Added only after the phase lands.
+- Added `RetentionTier`, `defaultTiers`, and tier-aware `namesToPrune` with default `tiers` and `timeZone` so `main.swift` is unchanged.
+- Bucket keys: `yyyy-MM-dd` prefix for 86400; civil day ordinal from 1970-01-01 divided by `N` for `N * 86400`; date prefix plus `secondOfDay / interval` otherwise (`en_US_POSIX` Gregorian).
+- Extended `tests/retention-tests.swift` for 15-minute (+7 min GMT), default daily (−7 h GMT cross-prefix), and 2-day UTC bucket fixtures; existing boundary expects unchanged.
 
 ## Phase 1 — Config, wiring, and the real binary
 
