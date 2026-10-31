@@ -1,4 +1,7 @@
 import Foundation
+#if canImport(ToolConfig)
+import ToolConfig
+#endif
 
 struct DropBoxWatcherConfig: Equatable {
     var watchFolder: String
@@ -12,16 +15,6 @@ enum ConfigLoadError: Error, Equatable {
     case permissionsTooOpen
     case parse(String)
     case io(String)
-}
-
-/// Returns `false` when permissions are too open (caller should exit 2 without parsing secrets).
-func configPermissionsAcceptable(at path: String) -> Bool {
-    guard let attrs = try? FileManager.default.attributesOfItem(atPath: path),
-          let perms = attrs[.posixPermissions] as? NSNumber
-    else {
-        return false
-    }
-    return perms.uint16Value & 0o077 == 0
 }
 
 func loadConfig(from path: String) -> Result<DropBoxWatcherConfig, ConfigLoadError> {
@@ -38,108 +31,80 @@ func loadConfig(from path: String) -> Result<DropBoxWatcherConfig, ConfigLoadErr
 }
 
 func parseConfigTOML(_ text: String) -> Result<DropBoxWatcherConfig, ConfigLoadError> {
+    let root: [String: TomlValue]
+    switch parseTomlSubset(text) {
+    case .failure(let error):
+        return .failure(.parse(error.message))
+    case .success(let table):
+        root = table
+    }
+    if let message = disallowedWatcherValue(in: root) {
+        return .failure(.parse(message))
+    }
+
     var watchFolder: String?
+    var watchFolderLine = 0
     var webhookURL: String?
     var webhookKey: String?
+    var webhookKeyLine = 0
+    var webhookURLLine = 0
     var ignorePatterns: [String]?
     var logPath: String?
 
-    var seenWatchFolder = false
-    var seenWebhookURL = false
-    var seenWebhookKey = false
-    var seenIgnore = false
-    var seenLogPath = false
-
-    var section = ""
-    var lineNumber = 0
-
-    for rawLine in text.split(separator: "\n", omittingEmptySubsequences: false) {
-        lineNumber += 1
-        var line = String(rawLine)
-        if let hash = line.firstIndex(of: "#") {
-            line = String(line[..<hash])
-        }
-        line = line.trimmingCharacters(in: .whitespaces)
-        if line.isEmpty { continue }
-
-        if line.hasPrefix("[") {
-            guard line.hasSuffix("]"), line.count >= 3 else {
-                return .failure(.parse("line \(lineNumber): bad table header"))
+    for (key, value) in root {
+        switch key {
+        case "watch_folder":
+            switch requireString(value, key: key) {
+            case .failure(let error):
+                return .failure(error)
+            case .success(let text):
+                watchFolder = text
+                watchFolderLine = value.line
             }
-            let name = String(line.dropFirst().dropLast()).trimmingCharacters(in: .whitespaces)
-            if name != "webhook", name != "behavior", name != "log" {
-                return .failure(.parse("line \(lineNumber): unknown table [\(name)]"))
-            }
-            section = name
-            continue
-        }
-
-        guard let eq = line.firstIndex(of: "=") else {
-            return .failure(.parse("line \(lineNumber): expected key = value"))
-        }
-        let key = String(line[..<eq]).trimmingCharacters(in: .whitespaces)
-        let valuePart = String(line[line.index(after: eq)...]).trimmingCharacters(in: .whitespaces)
-
-        if section.isEmpty {
-            if key != "watch_folder" {
-                return .failure(.parse("line \(lineNumber): unknown key \(key)"))
-            }
-            if seenWatchFolder {
-                return .failure(.parse("line \(lineNumber): duplicate watch_folder"))
-            }
-            seenWatchFolder = true
-            switch parseBasicString(valuePart, line: lineNumber) {
-            case .failure(let e): return .failure(e)
-            case .success(let s): watchFolder = s
-            }
-            continue
-        }
-
-        switch section {
         case "webhook":
-            if key == "url" {
-                if seenWebhookURL { return .failure(.parse("line \(lineNumber): duplicate url")) }
-                seenWebhookURL = true
-                switch parseBasicString(valuePart, line: lineNumber) {
-                case .failure(let e): return .failure(e)
-                case .success(let s): webhookURL = s
+            switch requireTable(value, key: key) {
+            case .failure(let error):
+                return .failure(error)
+            case .success(let table):
+                switch parseWebhookTable(table) {
+                case .failure(let error):
+                    return .failure(error)
+                case .success(let webhook):
+                    webhookURL = webhook.url
+                    webhookURLLine = webhook.urlLine
+                    webhookKey = webhook.key
+                    webhookKeyLine = webhook.keyLine
                 }
-            } else if key == "key" {
-                if seenWebhookKey { return .failure(.parse("line \(lineNumber): duplicate key")) }
-                seenWebhookKey = true
-                switch parseBasicString(valuePart, line: lineNumber) {
-                case .failure(let e): return .failure(e)
-                case .success(let s): webhookKey = s
-                }
-            } else {
-                return .failure(.parse("line \(lineNumber): unknown key \(key) in [webhook]"))
             }
         case "behavior":
-            if key != "ignore" {
-                return .failure(.parse("line \(lineNumber): unknown key \(key) in [behavior]"))
-            }
-            if seenIgnore { return .failure(.parse("line \(lineNumber): duplicate ignore")) }
-            seenIgnore = true
-            switch parseStringArray(valuePart, line: lineNumber) {
-            case .failure(let e): return .failure(e)
-            case .success(let arr):
-                for pattern in arr where pattern.contains("/") {
-                    return .failure(.parse("line \(lineNumber): ignore pattern must not contain /"))
+            switch requireTable(value, key: key) {
+            case .failure(let error):
+                return .failure(error)
+            case .success(let table):
+                switch parseBehaviorTable(table) {
+                case .failure(let error):
+                    return .failure(error)
+                case .success(let patterns):
+                    ignorePatterns = patterns
                 }
-                ignorePatterns = arr
             }
         case "log":
-            if key != "path" {
-                return .failure(.parse("line \(lineNumber): unknown key \(key) in [log]"))
-            }
-            if seenLogPath { return .failure(.parse("line \(lineNumber): duplicate path")) }
-            seenLogPath = true
-            switch parseBasicString(valuePart, line: lineNumber) {
-            case .failure(let e): return .failure(e)
-            case .success(let s): logPath = s
+            switch requireTable(value, key: key) {
+            case .failure(let error):
+                return .failure(error)
+            case .success(let table):
+                switch parseLogTable(table) {
+                case .failure(let error):
+                    return .failure(error)
+                case .success(let path):
+                    logPath = path
+                }
             }
         default:
-            break
+            if case .table = value.content {
+                return .failure(.parse("line \(value.line): unknown table [\(key)]"))
+            }
+            return .failure(.parse("line \(value.line): unknown key \(key)"))
         }
     }
 
@@ -147,16 +112,25 @@ func parseConfigTOML(_ text: String) -> Result<DropBoxWatcherConfig, ConfigLoadE
         return .failure(.parse("missing watch_folder"))
     }
     if !watchFolder.hasPrefix("/") {
-        return .failure(.parse("watch_folder must be an absolute path"))
+        return .failure(.parse("line \(watchFolderLine): watch_folder must be an absolute path"))
     }
-    guard let webhookURL else { return .failure(.parse("missing [webhook] url")) }
-    guard let webhookKey else { return .failure(.parse("missing [webhook] key")) }
-    if webhookKey.isEmpty { return .failure(.parse("webhook key must be non-empty")) }
-    guard let ignorePatterns else { return .failure(.parse("missing [behavior] ignore")) }
-    guard let logPath else { return .failure(.parse("missing [log] path")) }
-
+    guard let webhookURL else {
+        return .failure(.parse("missing [webhook] url"))
+    }
+    guard let webhookKey else {
+        return .failure(.parse("missing [webhook] key"))
+    }
+    if webhookKey.isEmpty {
+        return .failure(.parse("line \(webhookKeyLine): webhook key must be non-empty"))
+    }
+    guard let ignorePatterns else {
+        return .failure(.parse("missing [behavior] ignore"))
+    }
+    guard let logPath else {
+        return .failure(.parse("missing [log] path"))
+    }
     guard webhookURLAllowed(webhookURL) else {
-        return .failure(.parse("webhook url not allowed"))
+        return .failure(.parse("line \(webhookURLLine): webhook url not allowed"))
     }
 
     return .success(
@@ -181,80 +155,127 @@ func webhookURLAllowed(_ urlString: String) -> Bool {
     return url.port != nil
 }
 
-private func parseBasicString(_ valuePart: String, line: Int) -> Result<String, ConfigLoadError> {
-    guard valuePart.first == "\"", valuePart.last == "\"", valuePart.count >= 2 else {
-        return .failure(.parse("line \(line): value must be a basic string"))
-    }
-    let inner = String(valuePart.dropFirst().dropLast())
-    var out = ""
-    var i = inner.startIndex
-    while i < inner.endIndex {
-        let c = inner[i]
-        if c == "\\" {
-            let next = inner.index(after: i)
-            guard next < inner.endIndex else {
-                return .failure(.parse("line \(line): bad escape"))
-            }
-            let esc = inner[next]
-            if esc == "\\" || esc == "\"" {
-                out.append(esc)
-                i = inner.index(after: next)
-            } else {
-                return .failure(.parse("line \(line): bad escape"))
-            }
-        } else {
-            out.append(c)
-            i = inner.index(after: i)
-        }
-    }
-    return .success(out)
+private struct WebhookFields {
+    var url: String
+    var urlLine: Int
+    var key: String
+    var keyLine: Int
 }
 
-private func parseStringArray(_ valuePart: String, line: Int) -> Result<[String], ConfigLoadError> {
-    guard valuePart.first == "[", valuePart.last == "]" else {
-        return .failure(.parse("line \(line): ignore must be an array"))
+private func parseWebhookTable(_ table: [String: TomlValue]) -> Result<WebhookFields, ConfigLoadError> {
+    var url: String?
+    var urlLine = 0
+    var key: String?
+    var keyLine = 0
+    for (name, value) in table {
+        switch name {
+        case "url":
+            switch requireString(value, key: name) {
+            case .failure(let error):
+                return .failure(error)
+            case .success(let text):
+                url = text
+                urlLine = value.line
+            }
+        case "key":
+            switch requireString(value, key: name) {
+            case .failure(let error):
+                return .failure(error)
+            case .success(let text):
+                key = text
+                keyLine = value.line
+            }
+        default:
+            return .failure(.parse("line \(value.line): unknown key \(name) in [webhook]"))
+        }
     }
-    let body = String(valuePart.dropFirst().dropLast())
-    var items: [String] = []
-    var i = body.startIndex
-    while i < body.endIndex {
-        while i < body.endIndex, body[i].isWhitespace || body[i] == "," {
-            i = body.index(after: i)
-        }
-        if i >= body.endIndex { break }
-        guard body[i] == "\"" else {
-            return .failure(.parse("line \(line): array elements must be basic strings"))
-        }
-        var j = body.index(after: i)
-        var escaped = false
-        var raw = ""
-        while j < body.endIndex {
-            let c = body[j]
-            if escaped {
-                if c != "\\", c != "\"" {
-                    return .failure(.parse("line \(line): bad escape"))
-                }
-                raw.append(c)
-                escaped = false
-                j = body.index(after: j)
-                continue
-            }
-            if c == "\\" {
-                escaped = true
-                j = body.index(after: j)
-                continue
-            }
-            if c == "\"" {
-                break
-            }
-            raw.append(c)
-            j = body.index(after: j)
-        }
-        guard j < body.endIndex, body[j] == "\"" else {
-            return .failure(.parse("line \(line): unterminated string"))
-        }
-        items.append(raw)
-        i = body.index(after: j)
+    guard let url else {
+        return .failure(.parse("missing [webhook] url"))
     }
-    return .success(items)
+    guard let key else {
+        return .failure(.parse("missing [webhook] key"))
+    }
+    return .success(WebhookFields(url: url, urlLine: urlLine, key: key, keyLine: keyLine))
+}
+
+private func parseBehaviorTable(_ table: [String: TomlValue]) -> Result<[String], ConfigLoadError> {
+    var ignore: [String]?
+    for (name, value) in table {
+        if name != "ignore" {
+            return .failure(.parse("line \(value.line): unknown key \(name) in [behavior]"))
+        }
+        switch value.content {
+        case .arrayOfStrings(let patterns):
+            for pattern in patterns where pattern.contains("/") {
+                return .failure(.parse("line \(value.line): ignore pattern must not contain /"))
+            }
+            ignore = patterns
+        default:
+            return .failure(.parse("line \(value.line): expected an array of strings for ignore"))
+        }
+    }
+    guard let ignore else {
+        return .failure(.parse("missing [behavior] ignore"))
+    }
+    return .success(ignore)
+}
+
+private func parseLogTable(_ table: [String: TomlValue]) -> Result<String, ConfigLoadError> {
+    var path: String?
+    for (name, value) in table {
+        if name != "path" {
+            return .failure(.parse("line \(value.line): unknown key \(name) in [log]"))
+        }
+        switch requireString(value, key: name) {
+        case .failure(let error):
+            return .failure(error)
+        case .success(let text):
+            path = text
+        }
+    }
+    guard let path else {
+        return .failure(.parse("missing [log] path"))
+    }
+    return .success(path)
+}
+
+private func requireString(_ value: TomlValue, key: String) -> Result<String, ConfigLoadError> {
+    guard case .string(let text) = value.content else {
+        return .failure(.parse("line \(value.line): expected a string for \(key)"))
+    }
+    return .success(text)
+}
+
+private func requireTable(_ value: TomlValue, key: String) -> Result<[String: TomlValue], ConfigLoadError> {
+    guard case .table(let table) = value.content else {
+        return .failure(.parse("line \(value.line): expected a table for \(key)"))
+    }
+    return .success(table)
+}
+
+private func disallowedWatcherValue(in root: [String: TomlValue]) -> String? {
+    for (_, value) in root {
+        if let message = disallowedWatcherValue(value) {
+            return message
+        }
+    }
+    return nil
+}
+
+private func disallowedWatcherValue(_ value: TomlValue) -> String? {
+    switch value.content {
+    case .integer:
+        return "line \(value.line): integer value is not allowed"
+    case .arrayOfTables:
+        return "line \(value.line): array of tables is not allowed"
+    case .table(let table):
+        for (_, child) in table {
+            if let message = disallowedWatcherValue(child) {
+                return message
+            }
+        }
+        return nil
+    case .string, .arrayOfStrings:
+        return nil
+    }
 }

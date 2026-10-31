@@ -17,6 +17,14 @@ let package = Package(
             path: "Sources/BuildStamp",
             swiftSettings: macOS12Target
         ),
+        .target(
+            name: "ToolConfig",
+            path: "Sources/ToolConfig",
+            swiftSettings: [
+                .unsafeFlags(["-target", "arm64-apple-macos12.0"]),
+                .swiftLanguageMode(.v5),
+            ]
+        ),
         .executableTarget(
             name: "backup-folder",
             dependencies: ["BuildStamp"],
@@ -27,7 +35,7 @@ let package = Package(
         ),
         .executableTarget(
             name: "drop-box-watcher",
-            dependencies: ["BuildStamp"],
+            dependencies: ["BuildStamp", "ToolConfig"],
             path: "drop-box-watcher",
             swiftSettings: macOS12Target + [
                 .swiftLanguageMode(.v5),

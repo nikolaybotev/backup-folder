@@ -25,6 +25,7 @@ BIN="$(mktemp "$TMPDIR/linux-unit-XXXXXX")"
 trap 'rm -f "$BIN"' EXIT
 
 swiftc -O \
+  Sources/ToolConfig/TomlSubset.swift \
   drop-box-watcher/Config.swift \
   drop-box-watcher/Readiness.swift \
   drop-box-watcher/Log.swift \

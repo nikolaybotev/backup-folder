@@ -19,6 +19,7 @@ grep -q '// swift-tools-version: 6.0' Package.swift || fail "Package.swift missi
 grep -q 'backup-folder' Package.swift || fail "Package.swift missing backup-folder product"
 grep -q 'drop-box-watcher' Package.swift || fail "Package.swift missing drop-box-watcher product"
 grep -q 'BuildStamp' Package.swift || fail "Package.swift missing BuildStamp target"
+grep -q 'name: "ToolConfig"' Package.swift || fail "Package.swift missing ToolConfig target"
 
 [[ -f scripts/build.sh ]] || fail "missing scripts/build.sh"
 [[ -x scripts/build.sh ]] || fail "scripts/build.sh is not executable"
