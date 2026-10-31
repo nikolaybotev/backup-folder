@@ -126,6 +126,16 @@ ok "invalid tool name refused"
 source "$ROOT/tests/install-tools-gh-stub.sh"
 install_tools_write_gh_stub "$TMP_HOME/bin-stub"
 
+cat >"$PINS" <<'EOF'
+backup-folder v1.0.0
+bad/name v1.2.3
+EOF
+if PINS_FILE="$PINS" bash "$INSTALL_SCRIPT"; then
+  fail "valid pin before invalid line should exit non-zero"
+fi
+[[ ! -e "$TMP_HOME/bin/backup-folder" ]] || fail "valid pin before invalid line must install nothing"
+ok "valid pin before invalid line installs nothing"
+
 default_repo="$(sed -n 's/^GH_REPO="${GH_REPO:-\([^}]*\)}"$/\1/p' "$INSTALL_SCRIPT")"
 [[ -n "$default_repo" ]] || fail "installer has no default repository"
 

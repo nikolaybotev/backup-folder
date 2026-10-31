@@ -69,6 +69,10 @@ main() {
       echo "install-tools: invalid pin tag: $tag" >&2
       exit 1
     fi
+  done
+
+  for line in "${entries[@]}"; do
+    read -r tool tag <<<"$line"
     if [[ "$tag" == "unpinned" ]]; then
       echo "install-tools: skip $tool (unpinned)"
       continue
