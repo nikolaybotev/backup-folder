@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Author | the maintainer (relayed by the deployment Mac) |
+| Author | Maintainer (relayed by coordinator) |
 | Captured | 2026-10-30 |
 | Status | Draft |
 | Stage | 1 · Plan |
@@ -15,13 +15,13 @@ The maintainer is holding off on installing the watcher until backup-folder and 
 
 ## Proposed outcome
 
-Both tools share one Swift package and one build script. A merge to `main` publishes one GitHub release with arm64 macOS binaries and checksums. The version is a git tag. There is no `VERSION` file, and the release workflow does not push commits to `main`. The release job signs both binaries with the self-signed identity `Nikolay Botev Code Signing`. The deployment Mac installs a pinned release with `gh release download` and a checksum check.
+Both tools share one Swift package and one build script. A merge to `main` publishes one GitHub release with arm64 macOS binaries and checksums. The version is a git tag. There is no `VERSION` file, and the release workflow does not push commits to `main`. The release job signs both binaries with the self-signed identity `Nikolay Botev Code Signing`. The operator installs a pinned release with `gh release download` and a checksum check.
 
 The signing paragraphs in the original prompt are not the signing requirement. The signing corrections below replace them. Ad-hoc signing remains only when `SIGN_IDENTITY` is unset. The `VERSION` file in the kickoff is not the version scheme. The tag decision at the end of this file replaces it.
 
 ## Affected users and systems
 
-- **Users:** the maintainer, who approves anything installed on the deployment Mac. The deployment Mac, who follows the docs and does not install them unattended.
+- **Users:** the maintainer, who approves anything installed on the deployment Mac. The deployment Mac as the target environment for docs and installs.
 - **Systems:** the public repo `nikolaybotev/backup-folder`, GitHub Actions on `macos-latest`, ruleset 26167970 on `main`, `pins.txt`, `scripts/install-tools.sh`, and `~/bin` on the deployment Mac after the maintainer runs the installer.
 
 ## Constraints and principles
@@ -39,14 +39,14 @@ None. Ruleset 26167970 targets the default branch, not tags. The release workflo
 ## Original prompt (verbatim)
 
 ```
-From the maintainer (these words, relayed by the deployment Mac): he's holding off on installing the watcher until there's a proper build and release process, not an ad-hoc swiftc command. The outcome he wants for backup-folder (both tools, backup-folder and drop-box-watcher):
+From the maintainer (relayed by the coordinator): installation of the watcher waits until there is a proper build and release process, not an ad-hoc swiftc command. The desired outcome for backup-folder (both tools, backup-folder and drop-box-watcher):
 
 1. A real build definition: Swift Package Manager (Package.swift) with both executables, plus one small KISS bash script (e.g. scripts/build.sh) that's the single entry point. CI (the macos job) and a local build on the deployment Mac must run that same script the same way.
 2. A continuous release process: on merge to main, bump the version (propose a simple scheme, e.g. semver from a VERSION file or auto patch bump; say which you picked and why), tag it, and publish a GitHub release with the built arm64 macOS binaries and checksums attached.
 3. Signing: no paid Apple Developer membership. Binaries are at least ad-hoc signed (codesign -s -). Note in the docs that macOS ties TCC permissions (Desktop access) to the code signature, so ad-hoc re-signs may re-prompt after upgrades. Lay out the option of a free self-signed code-signing identity on the deployment Mac for a stable identity, but don't build that unless the maintainer asks.
-4. Update scripts/install-tools.sh and pins.txt so the deployment Mac installs a pinned release with gh release download (checksum-verified) instead of building from source, and update the watcher install docs to match.
+4. Update scripts/install-tools.sh and pins.txt so The operator installs a pinned release with gh release download (checksum-verified) instead of building from source, and update the watcher install docs to match.
 
-Keep CI at 5-minute timeouts for macos and linux, and keep CodeQL off pull requests. If you add a new required CI job name, tell me its exact name once it's on main so I can add it to the ruleset. When it's merged, bring me the install steps from a release. Nothing gets installed on the deployment Mac without the maintainer's own approval.
+Keep CI at 5-minute timeouts for macos and linux, and keep CodeQL off pull requests. If you add a new required CI job name, tell me its exact name once it's on main so I can add it to the ruleset. When it's merged, bring me the install steps from a release. Nothing gets installed on a live home without the maintainer's own approval.
 ```
 
 ## Kickoff decisions and constraints (verbatim)
@@ -78,7 +78,7 @@ The ad-hoc-only bullet in that constraints list is revoked by the signing correc
 ```
 The maintainer updated item 3. Replace the ad-hoc-only decision. Record this as the signing decision and do not re-litigate it.
 
-He wants a stable self-signed code-signing identity used by both GitHub Actions and local builds, instead of ad-hoc-only signing.
+Use a stable self-signed code-signing identity for both GitHub Actions and local builds, instead of ad-hoc-only signing.
 
 - CI release job: import the identity from two repo secrets, names `MACOS_SIGNING_P12_BASE64` and `MACOS_SIGNING_P12_PASSWORD`, into a temporary keychain, codesign both binaries with it (hardened runtime is fine, no notarization, no paid Apple Developer membership), verify with `codesign --verify`, and always delete the temp keychain. If the secrets are absent, fail the release job clearly. Do not fall back to silent ad-hoc signing on the release job.
 - `scripts/build.sh`: sign with the identity named by an env var `SIGN_IDENTITY` when set, otherwise ad-hoc (`codesign -s -`), so a local build on the deployment Mac can use the same cert from the login keychain.
@@ -99,7 +99,7 @@ The maintainer is creating the certificate now. Use these details exactly. Do no
 - Repo secrets: `MACOS_SIGNING_P12_BASE64` (base64 of the .p12) and `MACOS_SIGNING_P12_PASSWORD`.
 - Identity common name: `Nikolay Botev Code Signing`. Self-signed, RSA 2048, EKU codeSigning, created with macOS `/usr/bin/openssl` (LibreSSL) pkcs12 export. On the deployment Mac it is in the login keychain, trusted for codeSign.
 - CI imports it into a temporary keychain and signs with that identity name. A self-signed cert will not pass Gatekeeper or assessment checks. Verify with `codesign --verify --strict`, not `spctl`. Always delete the temp keychain. If either secret is absent, fail the release job. Do not fall back to ad-hoc on the release job.
-- `scripts/build.sh`: when `SIGN_IDENTITY` is set, sign with that identity (the deployment Mac's local builds set it to `Nikolay Botev Code Signing` so they use the login-keychain cert). When unset, ad-hoc `codesign -s -`.
+- `scripts/build.sh`: when `SIGN_IDENTITY` is set, sign with that identity (the deployment Mac’s local builds set it to `Nikolay Botev Code Signing` so they use the login-keychain cert). When unset, ad-hoc `codesign -s -`.
 - The one-time setup doc must match this procedure: create with openssl, `security import` plus `add-trusted-cert -p codeSign`, `gh secret set` from stdin, a copy in 1Password, delete the temp files. Do not include secret values, the password, or the .p12.
 
 Still spec and plan only. Keep the other constraints.
@@ -108,7 +108,7 @@ Still spec and plan only. Keep the other constraints.
 ## Tag version (verbatim)
 
 ```
-The maintainer decided, in these words: "Use git tags for the version, no VERSION file, and leave the protection unchanged."
+The maintainer decided: "Use git tags for the version, no VERSION file, and leave the protection unchanged."
 
 - No VERSION file. Nothing is ever pushed to main by the release workflow. Ruleset 26167970 stays exactly as it is: no bypass, no new token, no PAT.
 - On each push to main, the release workflow finds the latest v* tag (v0.1.0 if there is none yet) and computes the next version: a patch bump by default, minor or major when the merged PR has the label release:minor or release:major. It then pushes only the tag with GITHUB_TOKEN and publishes the GitHub release in the same workflow run, because tags pushed by GITHUB_TOKEN do not trigger other workflows.

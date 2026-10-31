@@ -1,4 +1,4 @@
-# spec.md — deployment bootstrap hub
+# spec.md — the deployment Mac bootstrap hub
 
 | | |
 |---|---|
@@ -39,7 +39,7 @@ The Drop Box watcher stays a separate intent. This spec only says where its bina
 ## 3. Principles
 
 - P1. The repo is public. Placeholders stay in git. The WireGuard server public key, public IP, port, private key, preshared key, tunnel addresses, webhook URL, webhook key, and any other secret are filled from 1Password at install time.
-- P2. The maintainer approves every install on the deployment Mac and runs it himself, with a heads-up. Merging to `main` does not deploy and does not publish a release.
+- P2. The maintainer approves every install on the deployment Mac and runs it personally, with a heads-up. Merging to `main` does not deploy and does not publish a release.
 - P3. `~/.bootstrap` remains the general dev bootstrap. This hub documents calling it and does not absorb it.
 - P4. The snapshot binary stays `backup-folder`. The project name Cairn is not a repo name and not a binary name.
 - P5. One build phase is one pull request. The build agent opens it ready for review and does not merge. The coordinator squash-merges only when the required checks are green. A cancelled check is not green.
@@ -47,11 +47,11 @@ The Drop Box watcher stays a separate intent. This spec only says where its bina
 
 ## 4. Users and scenarios
 
-The maintainer is the only person who runs these steps on the deployment Mac. An agent may edit the repo. An agent does not SSH to the deployment Mac, bootstrap a plist, or run the install script against a home directory.
+The maintainer is the only person who runs these steps on the deployment Mac. An agent may edit the repo. An agent does not SSH to the deployment Mac, bootstrap a plist, or run the install script against a live home directory.
 
-- **New Mac.** Follow `docs/setup.md` from top to bottom. Manual steps need a person at the keyboard. Script steps are commands he runs.
-- **Files restored onto an existing Mac.** Follow `docs/restore.md`. iCloud repopulates Desktop and Documents. He re-fills secrets from 1Password and re-loads agents that are missing.
-- **A new build of a tool.** He pushes a `v*` tag when he wants a release. The workflow attests and uploads. A later change, outside these phases, sets the pin. He then runs the install script, with a heads-up. These phases do not do that tag or that pin.
+- **New Mac.** Follow `docs/setup.md` from top to bottom. Manual steps need the operator at the keyboard. Script steps are commands the operator runs.
+- **Files restored onto an existing Mac.** Follow `docs/restore.md`. iCloud repopulates Desktop and Documents. The operator re-fills secrets from 1Password and re-loads agents that are missing.
+- **A new build of a tool.** The operator pushes a `v*` tag when a release is wanted a release. The workflow attests and uploads. A later change, outside these phases, sets the pin. The operator then runs the install script, with a heads-up. These phases do not do that tag or that pin.
 - **Cloud agent on Linux.** It can edit templates, docs, and the install script. It cannot run `clonefile`, `launchctl`, or the macOS APFS smoke test.
 
 ## 5. Functional requirements
@@ -151,8 +151,8 @@ FR12. Snapshot directories are home-mirrored: each one is `~/Backups` plus the s
 | 21 | Script | Install `launchd/com.wireguard.wg0.plist.template` to `/Library/LaunchDaemons/com.wireguard.wg0.plist` with `sudo`, `chown root:wheel`, `chmod 644`, then `sudo launchctl enable system/com.wireguard.wg0` and `sudo launchctl bootstrap system` on that plist. |
 | 22 | Script | Check with `sudo wg` and `sudo launchctl print system/com.wireguard.wg0`. Stop with `sudo launchctl bootout system/com.wireguard.wg0`. |
 | 23 | Manual | If the WireGuard GUI app is installed, turn off On-Demand and delete its tunnel. It keeps keys in the login keychain and fights the daemon. Do not use `sudo brew services start wireguard-tools`. |
-| 24 | Manual | External 2 TB SSD as APFS: volume `External`, and Time Machine volume `Time Machine volume` with an 800 GB quota. Time Machine backs up the Mac. Assistants stay off `External`. This step needs a heads-up before the disk is touched. |
-| 25 | Manual | Point Time Machine at `Time Machine volume`. |
+| 24 | Manual | External 2 TB SSD as APFS: volume `External`, and Time Machine volume `a named Time Machine volume` with an 800 GB quota. Time Machine backs up the Mac. Assistants stay off `External`. This step needs a heads-up before the disk is touched. |
+| 25 | Manual | Point Time Machine at `a named Time Machine volume`. |
 | 26 | Script | Run `scripts/install-tools.sh` once `pins.txt` names real tags. Until then the script skips unpinned tools. The destination is `~/bin`. |
 | 27 | Manual | Accept the macOS Desktop and Documents prompts for each new binary. Repeat after every new binary. Unidentified-developer prompts are part of this step until Q6 is answered. |
 | 28 | Script | Run `scripts/ensure-backup-dirs.sh` with the absolute home-mirrored snapshot directories. Each one is `~/Backups` plus the source path relative to the home directory. Those paths are arguments at install time, not files in git, and the source-folder names stay out of git. The script creates directories and does not delete. |
@@ -169,7 +169,7 @@ A caveat paragraph, not a bullet: with FileVault, nothing including the VPN star
 
 | # | Doc | Step |
 |---|---|---|
-| R1 | Manual | Restore files from Time Machine (`Time Machine volume`) or from the home-mirrored snapshot directories under `~/Backups` (`~/Backups` plus the source path relative to the home directory), as needed. |
+| R1 | Manual | Restore files from Time Machine (`a named Time Machine volume`) or from the home-mirrored snapshot directories under `~/Backups` (`~/Backups` plus the source path relative to the home directory), as needed. |
 | R2 | Manual | iCloud repopulates Desktop and Documents. Keep Downloaded still applies to those two folders. |
 | R3 | Manual | Re-fill `wg0.conf` and the watcher `config.toml` from 1Password. Modes stay `600` and `0600`. |
 | R4 | Script | Re-run the WireGuard daemon install and the LaunchAgent installs from the setup doc when those plists are missing. |
@@ -194,7 +194,7 @@ A caveat paragraph, not a bullet: with FileVault, nothing including the VPN star
 
 ## 7. Design decisions
 
-**D1 — Repo name stays; proposed name is `roger-bootstrap`.** Every phase in this plan uses `nikolaybotev/backup-folder` in workflow files, the install script, and attestation flags. The proposed GitHub name is `roger-bootstrap`. It fits because the repo will hold two tools, the install script, the launchd templates, and the setup docs, while the snapshot binary keeps the name `backup-folder`, and the general bootstrap keeps `~/.bootstrap` and `OWNER/bootstrap`. A later phase would otherwise rename the repo to Cairn or to `host`. Cairn is closed by the project preference that the repo and the binary are not renamed to the project name. `host` is the Mac and the bot, and it does not say bootstrap. The maintainer decides whether to rename (Q1). This change does not rename anything. Verified 2026-10-30: the GitHub repo is public, named `backup-folder`, default branch `main`.
+**D1 — Repo name stays; proposed name is `host-bootstrap`.** Every phase in this plan uses `nikolaybotev/backup-folder` in workflow files, the install script, and attestation flags. The proposed GitHub name is `host-bootstrap`. It fits because the repo will hold two tools, the install script, the launchd templates, and the setup docs, while the snapshot binary keeps the name `backup-folder`, and the general bootstrap keeps `~/.bootstrap` and `OWNER/bootstrap`. A later phase would otherwise rename the repo to Cairn or to a short host codename. Cairn is closed by the project preference that the repo and the binary are not renamed to the project name. The legacy host codename is the Mac and the bot, and it does not say bootstrap. The maintainer decides whether to rename (Q1). This change does not rename anything. Verified 2026-10-30: the GitHub repo is public, named `backup-folder`, default branch `main`.
 
 **D2 — Call `OWNER/bootstrap`; do not vendor it.** The setup doc runs the installer in setup catalog step 8. Verified 2026-10-30 from that public repo: the README gives that curl command and `~/.bootstrap/update`. `install.Darwin.sh` writes `~/.gitconfig` from a template whose `user.name` and `user.email` are placeholders, sets `commit.gpgsign` and `tag.gpgsign` to true, and leaves `signingkey` empty. This hub does not ship a gitconfig and does not hard-code a name or email.
 
@@ -206,7 +206,7 @@ A caveat paragraph, not a bullet: with FileVault, nothing including the VPN star
 
 **D6 — The public WireGuard template placeholders every tunnel value.** The runbook's filled-in addresses, and the IPv6 prefix its to-do says to abandon, are not copied into git. That to-do points at a prefix published in Ben Hardill's article [Setting up WireGuard IPv6](https://blog.hardill.me.uk/2021/04/20/setting-up-wireguard-ipv6/) (checked 2026-10-30). The replacement range is chosen when the AWS server changes, which is outside this repo. 1Password item URI paths are not committed; the item names were not given, and the template does not need them. The maintainer fills the tokens with `op` or by paste at install time.
 
-**D7 — Personal source-folder names stay out of git. The layout rule stays.** The runbook names three backup sources and a home-mirrored `~/Backups` layout. The public docs and the directory script do not contain those names. Each snapshot directory is `~/Backups` plus the source path relative to the home directory. He passes those absolute paths when he installs the LaunchAgents and when he runs `scripts/ensure-backup-dirs.sh`. The existing snapshot source comment in `backup-folder.swift` is left as it is; this change does not add folder names.
+**D7 — Personal source-folder names stay out of git. The layout rule stays.** The runbook names three backup sources and a home-mirrored `~/Backups` layout. The public docs and the directory script do not contain those names. Each snapshot directory is `~/Backups` plus the source path relative to the home directory. The operator passes those absolute paths when installing the LaunchAgents and when he runs `scripts/ensure-backup-dirs.sh`. The existing snapshot source comment in `backup-folder.swift` is left as it is; this change does not add folder names.
 
 **D8 — Backup agents fire at minute 0 under `com.nikolay.*`.** The template on `main` uses label `local.backup-folder.FOLDER`, `StartInterval` 3600, and `RunAtLoad` false. The runbook asks for `com.nikolay.backup-<name>` hourly at minute 0. The new template uses label `com.nikolay.backup.NAME`, `StartCalendarInterval` minute 0, and `RunAtLoad` false so loading the agent does not take an extra snapshot. `NAME` is the XML-safe form of the runbook's `<name>`. The program path is `/Users/USER/bin/backup-folder` because a plist does not expand `~`. Editing the template does not reload any agent on the deployment Mac.
 
@@ -216,7 +216,7 @@ A caveat paragraph, not a bullet: with FileVault, nothing including the VPN star
 
 **D11 — No phase publishes a release.** `pins.txt` ships with both tools `unpinned`. No phase pushes a tag or sets a real pin. `AGENTS.md` already says a release exists only after a `v*` tag push runs `release.yml`. That remains the rule. The release workflow change is inert until the maintainer pushes a tag.
 
-**D12 — A new GPG key is created on the new hardware.** The runbook says the old key is not backed up and names the key currently on the machine. This repo does not record that key id. The bootstrap gitconfig turns signing on. He sets `user.signingkey` to the new key and keeps the passphrase in 1Password.
+**D12 — A new GPG key is created on the new hardware.** The runbook says the old key is not backed up and names the key currently on the machine. This repo does not record that key id. The bootstrap gitconfig turns signing on. The operator sets `user.signingkey` to the new key and keeps the passphrase in 1Password.
 
 **D13 — Build and merge.** Spec, plan, and review use Grok 4.7 High. Each build phase is a fresh Composer 2.5 agent, one branch, one pull request, opened ready for review. That agent does not merge. The coordinator squash-merges when the `macos` check and the `CodeQL (Swift)` check are green, then deletes the branch. A cancelled check is not green. If Composer 2.5 cannot be launched, stop and ask. Do not substitute a model. Verified 2026-10-30 on `7625d02`: job `macos` is `.github/workflows/test.yml` (`macos-latest`, timeout 20 minutes) and runs `tests/macos-smoke.sh`; job `CodeQL (Swift)` is `.github/workflows/codeql.yml` (`macos-26`, timeout 30 minutes). These phases may add steps to the `macos` job. They do not add a Linux CI job and they do not edit `.github/workflows/codeql.yml`. PR #6, merged 2026-10-30, deletes `.github/scripts/protect-main-branch.sh` and `.github/workflows/protect-main.yml`, and it replaces the CodeQL bullet in `AGENTS.md`. Bootstrap phases must not recreate that script or rewrite that paragraph. They also must not recreate the deleted workflow.
 
@@ -224,7 +224,7 @@ A caveat paragraph, not a bullet: with FileVault, nothing including the VPN star
 
 ## 8. Open questions
 
-Q1. **Rename the GitHub repo to `roger-bootstrap`?** Phases keep `nikolaybotev/backup-folder` until the maintainer says yes. The binary stays `backup-folder` either way.
+Q1. **Rename the GitHub repo to `host-bootstrap`?** Phases keep `nikolaybotev/backup-folder` until the maintainer says yes. The binary stays `backup-folder` either way.
 
 Q2. **Turn Remote Login (SSH) on, or leave it off?** The setup doc does not enable it.
 

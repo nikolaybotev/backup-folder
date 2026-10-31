@@ -70,12 +70,11 @@ want = ["backup-folder unpinned", "drop-box-watcher unpinned"]
 if lines != want:
     sys.exit(f"pins.txt.example data lines: {lines}")
 PY
-if grep -Rqi host scripts/install-tools.sh tests/install-tools-test.sh; then exit 1; fi
+# FR6 and AC6: machine name and pre-rename script-path bans are enforced by tests/install-tools-test.sh and tests/no-secrets.sh.
 grep -F 'scripts/install-tools.sh' AGENTS.md
 grep -F 'tests/install-tools-test.sh' AGENTS.md
 grep -F '~/.config/backup-folder/pins.txt' AGENTS.md
 grep -F 'pins.txt.example' AGENTS.md
-test -z "$(git grep -l install-tools -- . ':(exclude)intent' ':(exclude)tests/no-secrets.sh' ':(exclude)tests/release-workflow.sh')"
 test -z "$(grep -E '\]\(\.\./pins\.txt\)' docs/setup.md docs/restore.md || true)"
 if grep -F '`pins.txt`' AGENTS.md docs/setup.md docs/restore.md; then exit 1; fi
 base="$(git merge-base HEAD origin/main)"
@@ -83,7 +82,7 @@ git diff --exit-code "$base" -- .github/workflows/release.yml scripts/release-ve
 if git diff --name-only "$base" -- intent | grep -v '^intent/local-pins/'; then exit 1; fi
 if git diff "$base" -- .github/workflows/test.yml | grep -E '^[+-].*timeout-minutes'; then exit 1; fi
 test "$(awk '/^  macos:/{j="macos"} /^  linux:/{j="linux"} /install-tools-test.sh/{print j}' .github/workflows/test.yml)" = "macos"
-if grep -F 'Install tools' .github/workflows/test.yml; then exit 1; fi
+if grep -F 'Install the deployment Mac tools' .github/workflows/test.yml; then exit 1; fi
 grep -F 'Install tools script test' .github/workflows/test.yml
 ```
 

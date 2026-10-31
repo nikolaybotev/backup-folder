@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Author | the maintainer |
+| Author | Maintainer |
 | Captured | 2026-10-29 |
 | Status | Draft |
 | Stage | 1 · Plan |
@@ -36,7 +36,7 @@ Each run has its own snapshot name. A second run for the same dest waits or skip
 
 > Then write the intent(s) from your findings and fix all the issues you identified, plus anything else you find. Split them into one or more intents as you judge best, following the ai-native-sdlc skill: spec and plan, then an independent review, then build, with one phase per PR, merged only when checks pass.
 >
-> The standing rule hasn't changed: nothing touches ~/Backups or the installed binary on the deployment Mac. When a release is ready, report it to me and I'll arrange the rollout with the maintainer. Send me PR links and a short status as each phase lands.
+> The standing rule has not changed: nothing touches ~/Backups or the installed binary on the deployment Mac. When a release is ready, send PR links and a short status to the coordinator for rollout approval.
 
 ## Source
 

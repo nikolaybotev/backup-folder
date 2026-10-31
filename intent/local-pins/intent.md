@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Author | the maintainer (relayed by the deployment Mac) |
+| Author | Maintainer (relayed by coordinator) |
 | Captured | 2026-10-30 |
 | Status | Draft |
 | Stage | 1 · Plan |
@@ -25,8 +25,8 @@ The live pin file stays on the machine that runs the installer, and it is not co
 ## Constraints and principles
 
 - The pin file is local. It is not a git commit, so a pin is not what publishes a release.
-- The installer is not named for the Mac.
-- Nothing gets installed on the deployment Mac. The change goes through a pull request, agent review, and merge.
+- The installer is not named for the deployment Mac.
+- Nothing gets installed on a live home. The change goes through a pull request, agent review, and merge.
 - Publish-on-merge stays as it is.
 
 ## Open questions (carried into spec.md)
@@ -36,10 +36,10 @@ None. The pin path, the script name, and the rejected `scripts/install.sh` name 
 ## Original prompt (verbatim)
 
 ```
-the maintainer's direction on the auto-install script (relayed by the coordinator):
+The maintainer's direction on the auto-install script (relayed by the coordinator):
 1. pins.txt must not be tracked in git. It is a local file on the machine that uses the auto-install (e.g. under ~/.config), never committed. This also removes the problem of a pin commit publishing a new release.
-2. The auto-install script must not have "host" in its name; give it a generic name.
-Make both changes through the normal ai-native SDLC (PR, agent review, merge). Nothing gets installed on the deployment Mac.
+2. The auto-install script must not embed a machine name in its name; give it a generic name.
+Make both changes through the normal ai-native SDLC (PR, agent review, merge). Nothing gets installed on a live home.
 ```
 
 ## Kickoff decisions and constraints (verbatim)
@@ -48,7 +48,7 @@ Make both changes through the normal ai-native SDLC (PR, agent review, merge). N
 Decisions already made, record them and do not re-litigate:
 
 - D1. The tracked file pins.txt is removed from git and added to .gitignore. The live pin file is ~/.config/backup-folder/pins.txt. The script reads that path. A committed pins.txt.example documents the format (tool name and v* tag, or unpinned) and is not the live pin. Do not put a real pin in the example.
-- D2. Rename scripts/install-tools.sh to scripts/install-tools.sh. Rename its test the same way. Update every reference (AGENTS.md, docs, setup-docs bullet checks, workflows). No "host" in the new script name.
+- D2. Rename scripts/install-tools.sh to scripts/install-tools.sh. Rename its test the same way. Update every reference (AGENTS.md, docs, setup-docs bullet checks, workflows). No legacy host token in the new script name.
 - Why D2: the script installs whatever tools the local pin file names. It is not specific to the machine named the deployment Mac.
 
 Constraints:

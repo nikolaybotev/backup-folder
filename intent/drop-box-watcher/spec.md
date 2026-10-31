@@ -8,7 +8,7 @@
 
 ## 1. Summary
 
-`drop-box-watcher` is a second command-line tool in this repository. A per-user LaunchAgent runs it in the deployment Mac's login session. It watches one folder. When a regular file in that folder is fully present on disk, one Swift actor POSTs a nudge to a Grok Bot routine webhook. The deployment Mac lists the folder and moves the files. The watcher does not.
+`drop-box-watcher` is a second command-line tool in this repository. A per-user LaunchAgent runs it in the operator login session. It watches one folder. When a regular file in that folder is fully present on disk, one Swift actor POSTs a nudge to a Grok Bot routine webhook. The bot lists the folder and moves the files. The watcher does not.
 
 The snapshot tool is unchanged. Nothing in this spec installs software on the deployment Mac or publishes a release by itself.
 
@@ -24,8 +24,8 @@ The snapshot tool is unchanged. Nothing in this spec installs software on the de
 
 **Non-goals**
 
-- Moving, renaming, editing, or deleting files. Listing the folder and sorting files stays the deployment Mac's work.
-- The 11 PM sweep, the hourly poll, and any other bot routine. Those stay the backstop the maintainer named. This spec does not define how they work.
+- Moving, renaming, editing, or deleting files. Listing the folder and sorting files stays the bot's work.
+- The 11 PM sweep, the hourly poll, and any other bot routine. Those stay the named backstop. This spec does not define how they work.
 - A settle delay, a size-stability debounce, or any timer on the readiness path.
 - NSMetadataQuery, File Provider, `brctl`, Keychain, and `url(forUbiquityContainerIdentifier:)`.
 - Renaming the repository or the `backup-folder` binary.
@@ -34,19 +34,19 @@ The snapshot tool is unchanged. Nothing in this spec installs software on the de
 - Installing or loading the agent on the deployment Mac. The maintainer approves a rollout. A merge to `main` does not deploy. A release exists only after a `v*` tag runs the release workflow.
 - Persistent dedup across restarts, and a second webhook client.
 
-**Release phasing.** Every untagged requirement in this spec is in the first release of the watcher. There is no later-release slice inside this intent. Dropping one of the two event triggers, after the deployment Mac has measured them, would be a new intent.
+**Release phasing.** Every untagged requirement in this spec is in the first release of the watcher. There is no later-release slice inside this intent. Dropping one of the two event triggers, after the deployment Mac measurement, would be a new intent.
 
 ## 3. Principles
 
 - P1. A file is ready only because of its current Apple file state, observed when an event arrives or when the startup scan runs. The process does not wait for a file to settle.
 - P2. `WebhookNotifier` is the only type that talks to the webhook. Readiness code enqueues work and returns.
-- P3. A nudge is safe to repeat. The deployment Mac lists the folder. The payload names are a hint.
+- P3. A nudge is safe to repeat. The bot lists the folder. The payload names are a hint.
 - P4. The secret stays in the config file. Logs, process arguments, and the repository do not contain it.
 - P5. The spec wins over the plan. A departure is written into the plan under that phase.
 
 ## 4. Users and scenarios
 
-The maintainer drops a file into the iCloud Desktop folder from another device, or moves one in from elsewhere in iCloud, or saves one on the deployment Mac. The watcher nudges the deployment Mac. The deployment Mac handles the file.
+The operator drops a file into the iCloud Desktop folder from another device, or moves one in from elsewhere in iCloud, or saves one on the deployment Mac. The watcher nudges the bot. The bot handles the file.
 
 S1. **Cloud file, new.** A placeholder appears under the final name. The watcher does not nudge. iCloud fills the file in place. The next change event finds the file current, and one nudge names it.
 
@@ -101,7 +101,7 @@ FR9. **Triggers.** Both of these are on:
 - An `NSFilePresenter` for the watch folder, on a serial `OperationQueue` named `drop-box-watcher`. Implement `presentedSubitemDidChange(at:)`, `presentedSubitemDidAppear(at:)`, `presentedSubitem(_:didMoveTo:)`, and `presentedSubitemDidDisappear(at:)`. The first three recheck FR7. The move callback rechecks the new URL. `presentedSubitemDidDisappear(at:)` only removes claim keys for that path. It does not nudge and it does not request a download.
 - An FSEvents stream on the watch folder, created with `FSEventStreamCreate`, `sinceWhen` of `kFSEventStreamEventIdSinceNow`, latency `0`, and flags `kFSEventStreamCreateFlagFileEvents`, `kFSEventStreamCreateFlagUseCFTypes`, and `kFSEventStreamCreateFlagNoDefer`. Schedule it with `FSEventStreamSetDispatchQueue` on a queue named `drop-box-watcher.fsevents`. The callback hops onto the presenter queue before it touches watcher state. Do not filter on event flags. Every path event rechecks FR7.
 
-Start order: add the presenter, start the stream, then run the startup scan on the presenter queue. `main` holds the watcher for the process lifetime and calls `dispatchMain()`. If stream creation fails, log an error and keep the presenter and the scan. The code does not choose a trigger from a list of flags. the deployment Mac's later measurement records which callbacks fired; it does not change this requirement.
+Start order: add the presenter, start the stream, then run the startup scan on the presenter queue. `main` holds the watcher for the process lifetime and calls `dispatchMain()`. If stream creation fails, log an error and keep the presenter and the scan. The code does not choose a trigger from a list of flags. The later deployment Mac measurement records which callbacks fired; it does not change this requirement.
 
 FR10. **Startup scan.** Enumerate the folder root only, direct children per FR6. Apply the FR7 decision to each child. A request-download child gets `startDownloadingUbiquitousItem(at:)` and is not claimed. Claim every ready child. Submit one batch for all of them.
 
@@ -148,21 +148,21 @@ AC11. The iCloud flag measurement on the deployment Mac is not a CI check. The i
 
 **D1 — Second tool in this repository.** The watcher is a new binary beside `backup-folder`. The repository name and the snapshot binary stay. The maintainer settled the repo; a rename is out of scope. Verified: `main` at `7625d02` is still that snapshot tool plus CI.
 
-**D2 — Login LaunchAgent, binary at `~/bin`.** iCloud syncs in a logged-in session, and the deployment Mac keeps FileVault on with no auto-login, so this is a per-user agent, not a LaunchDaemon. It starts at login. The binary path is `~/bin/drop-box-watcher`, which is the install location the maintainer chose. The plist stores that location as an absolute path (D14).
+**D2 — Login LaunchAgent, binary at `~/bin`.** iCloud syncs in a logged-in session, and The deployment Mac keeps FileVault on with no auto-login, so this is a per-user agent, not a LaunchDaemon. It starts at login. The binary path is `~/bin/drop-box-watcher`, which is the chosen install location. The plist stores that location as an absolute path (D14).
 
-**D3 — TOML config, no Keychain.** URL, secret, folder, ignore list, and log path come from one TOML file the plist passes in. The real file stays outside the repo, outside iCloud Desktop and Documents, and outside `~/Backups`, at `~/.config/drop-box-watcher/config.toml`, mode `0600`. The maintainer rejected Keychain. The subset in FR3 is the whole language the parser implements, so a typo cannot silently drop the secret. Checked on the Linux toolchain on 2026-10-30: `FileManager` posix permissions report `0600` after that mode is set.
+**D3 — TOML config, no Keychain.** URL, secret, folder, ignore list, and log path come from one TOML file the plist passes in. The real file stays outside the repo, outside iCloud Desktop and Documents, and outside `~/Backups`, at `~/.config/drop-box-watcher/config.toml`, mode `0600`. Keychain was rejected. The subset in FR3 is the whole language the parser implements, so a typo cannot silently drop the secret. Checked on the Linux toolchain on 2026-10-30: `FileManager` posix permissions report `0600` after that mode is set.
 
 **D4 — Notify only, plus one download request.** The process never moves, renames, edits, or deletes a file, and it does not create the watch folder. `startDownloadingUbiquitousItem(at:)` is the one iCloud request, and it is how a placeholder gets contents. The watcher makes that call when the pure FR7 value says request download, on a later event and on the startup scan. Apple's document for that method says it starts a download when the item is not local and synchronizes a local item with the cloud. Checked 2026-10-30 from Apple's documentation JSON.
 
-**D5 — No readiness timer.** the maintainer closed this. FSEvents latency is `0`. Apple's `FSEventStreamCreate` document says latency is the number of seconds the service waits after a kernel event before the callback, so zero adds no wait. The stream also sets `kFSEventStreamCreateFlagNoDefer`, which the brief requires with that latency. The only sleeps are inside `WebhookNotifier`, and only after a failed delivery (D10). A test harness may poll; the product readiness path does not.
+**D5 — No readiness timer.** Closed decision. FSEvents latency is `0`. Apple's `FSEventStreamCreate` document says latency is the number of seconds the service waits after a kernel event before the callback, so zero adds no wait. The stream also sets `kFSEventStreamCreateFlagNoDefer`, which the brief requires with that latency. The only sleeps are inside `WebhookNotifier`, and only after a failed delivery (D10). A test harness may poll; the product readiness path does not.
 
-**D6 — Status first, coordinate only when ready.** Apple's `coordinate(readingItemAt:options:error:byAccessor:)` document says that if the device has not yet downloaded the file, the call blocks, potentially for a long time, while it downloads. The watcher therefore reads `URLUbiquitousItemDownloadingStatus` first and coordinates only a file that FR7 already calls ready. The coordinator is created with the watcher as file presenter so the read does not deadlock against that presenter. Checked 2026-10-30 from Apple's documentation JSON. Status meanings checked the same day: `.current` is the most up-to-date local copy known to the device; `.downloaded` is a stale local copy; `.notDownloaded` has not been downloaded and the document points at `startDownloadingUbiquitousItem`. the deployment Mac's 2026-10-29 trace, recorded in the intent, saw a placeholder become `.current` in place and never saw `.downloaded`. This draft did not re-run that trace.
+**D6 — Status first, coordinate only when ready.** Apple's `coordinate(readingItemAt:options:error:byAccessor:)` document says that if the device has not yet downloaded the file, the call blocks, potentially for a long time, while it downloads. The watcher therefore reads `URLUbiquitousItemDownloadingStatus` first and coordinates only a file that FR7 already calls ready. The coordinator is created with the watcher as file presenter so the read does not deadlock against that presenter. Checked 2026-10-30 from Apple's documentation JSON. Status meanings checked the same day: `.current` is the most up-to-date local copy known to the device; `.downloaded` is a stale local copy; `.notDownloaded` has not been downloaded and the document points at `startDownloadingUbiquitousItem`. The 2026-10-29 trace, recorded in the intent, saw a placeholder become `.current` in place and never saw `.downloaded`. This draft did not re-run that trace.
 
-**D7 — Both triggers, no flag filter.** the maintainer settled FSEvents and an `NSFilePresenter` together. `NSMetadataQueryUbiquitousDocumentsScope` searches the Documents directories of the app's iCloud container, and `NSMetadataQueryUbiquitousDataScope` searches the rest of that container. Checked 2026-10-30 from Apple's documentation JSON. Those scopes search the app's iCloud container, which is not Desktop. The maintainer rejected them, and rejected File Provider and `brctl`, for this watcher. Every FSEvents callback rechecks state, so an unmeasured flag cannot hide an arrival. Which flags and which presenter methods fire on a cloud arrival is still a measurement for the deployment Mac (section 8). It is not a switch in the code.
+**D7 — Both triggers, no flag filter.** FSEvents and presenter were settled together and an `NSFilePresenter` together. `NSMetadataQueryUbiquitousDocumentsScope` searches the Documents directories of the app's iCloud container, and `NSMetadataQueryUbiquitousDataScope` searches the rest of that container. Checked 2026-10-30 from Apple's documentation JSON. Those scopes search the app's iCloud container, which is not Desktop. Those scopes were rejected, and rejected File Provider and `brctl`, for this watcher. Every FSEvents callback rechecks state, so an unmeasured flag cannot hide an arrival. Which flags and which presenter methods fire on a cloud arrival is still a measurement on the deployment Mac (section 8). It is not a switch in the code.
 
-**D8 — Dedup triple, memory only.** the maintainer keyed a nudge by path, inode, and size. The identity is that triple as fields, not a joined string. The set is in memory. The startup scan, including the scan after a crash or a login, nudges every file that is ready at that moment. A repeated nudge is safe (P3). There is no on-disk dedup database.
+**D8 — Dedup triple, memory only.** A nudge is keyed by path, inode, and size. The identity is that triple as fields, not a joined string. The set is in memory. The startup scan, including the scan after a crash or a login, nudges every file that is ready at that moment. A repeated nudge is safe (P3). There is no on-disk dedup database.
 
-**D9 — Payload and header.** The body is `event_time` plus `files`, basenames only. The deployment Mac relists the folder and does not depend on the names. The header is `Authorization: Bearer <key>`. Cursor's Routines document, fetched 2026-10-30 from `https://cursor.com/help/grok-bot/routines`, says the panel's key is sent that way, that the panel also shows the full header, that a JSON body is delivered to the bot, and that HTTP 200 means the run was accepted and started, not that the bot finished. Any other response means a run did not start. Success for FR11 is any 2xx, which covers that 200. The same page documents routine rate limits of 200 runs an hour for one routine and 300 an hour across routines. A non-2xx from those limits uses the same retry path. A repeated nudge is safe.
+**D9 — Payload and header.** The body is `event_time` plus `files`, basenames only. The bot relists the folder and does not depend on the names. The header is `Authorization: Bearer <key>`. Cursor's Routines document, fetched 2026-10-30 from `https://cursor.com/help/grok-bot/routines`, says the panel's key is sent that way, that the panel also shows the full header, that a JSON body is delivered to the bot, and that HTTP 200 means the run was accepted and started, not that the bot finished. Any other response means a run did not start. Success for FR11 is any 2xx, which covers that 200. The same page documents routine rate limits of 200 runs an hour for one routine and 300 an hour across routines. A non-2xx from those limits uses the same retry path. A repeated nudge is safe.
 
 **D10 — One actor, delivery waits only.** the maintainer's `WebhookNotifier` is the only webhook speaker. `submit` returns after it merges. The presenter queue does not wait on HTTP. One POST at a time. Pending claims merge. A new claim during a backoff wait cancels the wait and sends. The sequence is 1, 2, 4, 8, 16, then 30 seconds, which is the sequence in the brief with the 30 second cap. A failed immediate resend continues that sequence. Success resets it. The 60 second request timeout is a bound on a hung accept, not a readiness delay. Checked 2026-10-30: `URLSession` and `URLRequest` compile on the Linux toolchain when the file imports `FoundationNetworking` under `canImport`. The UTC ISO-8601 formatter produced `1970-01-01T00:00:00Z` for the Unix epoch on that toolchain.
 
@@ -207,4 +207,4 @@ Checked 2026-10-30, before this draft was committed:
 - This VM's Swift 6.4.1: an actor runs; posix mode `0600` is reported; UTC ISO-8601 for the epoch is `1970-01-01T00:00:00Z`; `URLRequest` needs `FoundationNetworking` on Linux; `URLUbiquitousItemDownloadingStatus` is absent on Linux.
 - `main` is `7625d02`, the merged CodeQL and timeout pull request. The snapshot sources are the program this spec leaves alone.
 
-the deployment Mac's 2026-10-29 iCloud traces are part of the verbatim intent. They were not re-run here. This VM cannot run FSEvents, `clonefile`, or `launchctl`.
+The deployment Mac's 2026-10-29 iCloud traces are part of the verbatim intent. They were not re-run here. This VM cannot run FSEvents, `clonefile`, or `launchctl`.

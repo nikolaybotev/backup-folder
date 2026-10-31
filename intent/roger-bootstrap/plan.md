@@ -1,4 +1,4 @@
-# plan.md — deployment bootstrap hub
+# plan.md — the deployment Mac bootstrap hub
 
 | | |
 |---|---|
@@ -93,12 +93,12 @@ Files: `docs/setup.md`, `docs/restore.md`, `tests/setup-docs.sh`, `.github/workf
 4. For catalog step 30, link the watcher intent's template path if that file exists. If it does not, say the template is added by `intent/drop-box-watcher/` and do not invent the plist.
 5. Add `tests/setup-docs.sh`. It fails if either doc is missing, if any bullet does not start with `- Manual:` or `- Script:`, if `docs/setup.md` does not have 32 such bullets, if `docs/restore.md` does not have 7 such bullets, or if any anchor below is absent from `docs/setup.md` (restore anchors must be in `docs/restore.md`).
 
-Setup anchors: `Keep Downloaded`, `FileVault`, `Screen Sharing`, `Remote Login`, `Choose a computer name`, `raw.github.com/OWNER/bootstrap/main/install.sh`, `jq`, `fresh Mac`, `mise.en.dev`, `wireguard-tools`, `gh auth login`, `gnupg`, `pinentry`, `signingkey`, `Grok Bot`, `self-hosted`, `1Password`, `iStat Menus`, `MacVim`, `wg0.conf`, `chmod 600`, `com.wireguard.wg0`, `brew services`, `fdesetup`, `Time Machine volume`, `External`, `install-tools.sh`, `ensure-backup-dirs.sh`, `home-mirrored`, `com.nikolay.backup.NAME`, `Drop Box`, `config.toml`.
+Setup anchors: `Keep Downloaded`, `FileVault`, `Screen Sharing`, `Remote Login`, `the Bonjour name`, `raw.github.com/OWNER/bootstrap/main/install.sh`, `jq`, `fresh Mac`, `mise.en.dev`, `wireguard-tools`, `gh auth login`, `gnupg`, `pinentry`, `signingkey`, `Grok Bot`, `self-hosted`, `1Password`, `iStat Menus`, `MacVim`, `wg0.conf`, `chmod 600`, `com.wireguard.wg0`, `brew services`, `fdesetup`, `a named Time Machine volume`, `External`, `install-tools.sh`, `ensure-backup-dirs.sh`, `home-mirrored`, `com.nikolay.backup.NAME`, `Drop Box`, `config.toml`.
 
-Restore anchors: `Time Machine volume`, `home-mirrored`, `Keep Downloaded`, `config.toml`, `install-tools.sh`, `file-access-policy`.
+Restore anchors: `a named Time Machine volume`, `home-mirrored`, `Keep Downloaded`, `config.toml`, `install-tools.sh`, `file-access-policy`.
 
 6. Add a `macos` job step that runs `bash tests/setup-docs.sh`.
-7. Add a short README paragraph after the opening description: this repo is also the setup hub for the Mac; setup and restore are `docs/setup.md` and `docs/restore.md`; the maintainer runs them; CI does not install them.
+7. Add a short README paragraph after the opening description: this repo is also the setup hub for the deployment Mac; setup and restore are `docs/setup.md` and `docs/restore.md`; the maintainer runs them; CI does not install them.
 8. Add an `AGENTS.md` pitfall: agents do not run the setup or restore docs, the install script, or `launchctl` against a live machine. Leave the CodeQL bullet unchanged.
 
 DoD: `bash tests/setup-docs.sh` exits 0 and `bash tests/no-secrets.sh` still exits 0.
