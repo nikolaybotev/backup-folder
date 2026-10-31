@@ -174,7 +174,18 @@ for path in paths:
                 violations.append(f"{rel}: IPv6 literal ({frag})")
                 break
     if port_suffix.search(text):
-        violations.append(f"{rel}: numeric port suffix")
+        # Whitespace then ":00" is minute notation in prose, not a port.
+        # Any other integer after that colon still fails.
+        bad_port = False
+        for match in port_suffix.finditer(text):
+            digits = match.group(1)
+            before = text[match.start() - 1] if match.start() else ""
+            if digits == "00" and before.isspace():
+                continue
+            bad_port = True
+            break
+        if bad_port:
+            violations.append(f"{rel}: numeric port suffix")
     if rel.parts[0:2] == (".github", "workflows") and workflow_banned.search(text):
         violations.append(f"{rel}: banned workflow content (install-tools, launchctl, or Backups)")
 
