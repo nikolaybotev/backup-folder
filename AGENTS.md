@@ -43,7 +43,7 @@ Small macOS CLI that snapshots a folder with APFS copy-on-write clones (`backup-
 - Do not run bare `swift build` for product binaries; use `bash scripts/build.sh` on macOS.
 - Do not add a Linux CI job that type-checks or links `Sources/backup-folder/main.swift`; the existing `linux` job runs `tests/linux-unit.sh`, the retention unit tests, and `path-tests` only.
 - Do not claim a GitHub release was published unless the `publish` job on a push to `main` succeeded.
-- Squash-merge subjects on `main` must end with `(#N)`. Without that suffix, `scripts/release-version.sh` fails and job `publish` does not run.
+- Squash-merge subjects on `main` must end with `(#N)`. Without that suffix, `scripts/release-version.sh` exits non-zero and job `publish` fails.
 - Do not create or change branch protection rulesets in GitHub; branch protection is managed outside this repo with `gh`.
 - Cloud Agents on Linux can parse and edit the source but cannot execute `clonefile`, APFS clones, or `launchctl`.
 - Agents do not run [`docs/setup.md`](docs/setup.md) or [`docs/restore.md`](docs/restore.md) on a live Mac, do not run `scripts/install-tools.sh` against a live home, and do not run `launchctl` on a live Mac.
