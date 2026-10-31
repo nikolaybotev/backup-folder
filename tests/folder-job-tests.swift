@@ -271,17 +271,27 @@ struct FolderJobTests {
         [[folder]]
         source = "/ABS/SOURCE"
         dest = "/ABS/BACKUP"
-        retention = ["60s", "1m"]
+        retention = ["60s/2h", "1m/8h"]
         """
         switch parseBackupConfig(equalIntervals) {
         case .failure(let error):
-            fail("60s 1m \(error.message)")
+            fail("60s/2h 1m/8h \(error.message)")
         case .success(let config):
             let tiers = config.folders[0].retentionTiers
             assert(tiers.count == 2, "two tiers")
-            assert(tiers[0].intervalSeconds == 0 && tiers[0].ageSeconds == 60, "60s keep-all tier")
-            assert(tiers[1].intervalSeconds == 60 && tiers[1].ageSeconds == 120, "1m interval tier")
+            assert(tiers[0].intervalSeconds == 60 && tiers[0].ageSeconds == 2 * 3600, "60s/2h tier")
+            assert(tiers[1].intervalSeconds == 60 && tiers[1].ageSeconds == 8 * 3600, "1m/8h tier")
         }
+
+        assertRetentionFailure(
+            """
+            [[folder]]
+            source = "/ABS/SOURCE"
+            dest = "/ABS/BACKUP"
+            retention = ["60s", "1m"]
+            """,
+            contains: "retention ages must increase"
+        )
 
         let inheritRoot = """
         retention = ["4h"]

@@ -183,16 +183,11 @@ private func parseRetentionValue(_ value: TomlValue) -> Result<[RetentionTier], 
     }
     var tiers: [RetentionTier] = []
     tiers.reserveCapacity(elements.count)
-    var previousAge: Int?
     for element in elements {
-        guard var parsed = parseRetentionTierString(element) else {
+        guard let parsed = parseRetentionTierString(element) else {
             return .failure(BackupConfigError(message: "line \(value.line): bad retention tier"))
         }
-        if element == "1m", previousAge == 60, parsed.intervalSeconds == 0, parsed.ageSeconds == 60 {
-            parsed = RetentionTier(intervalSeconds: 60, ageSeconds: 120)
-        }
         tiers.append(parsed)
-        previousAge = parsed.ageSeconds
     }
     if let error = validateRetentionTiers(tiers, line: value.line) {
         return .failure(error)
