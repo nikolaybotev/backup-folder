@@ -20,7 +20,7 @@ None.
 
 Files: `intent/one-backup-job/`, and the port-scan exception in `tests/no-secrets.sh`.
 
-On main, the port scan flags every colon-and-digits match, including the minute notation in the captured prompt (a colon and two zeros after a space). This pull request ignores that one case. Any other integer in that position still fails. Do not weaken the address, key, or 1Password item URI checks.
+On main, the port scan flags every colon-and-digits match, including the minute notation in the captured prompt of `intent/one-backup-job/intent.md`. This pull request ignores that one phrase there, after the Original prompt heading, and nowhere else. A colon and digits in any other file, after any other prefix, or after other whitespace still fails. Do not weaken the address, key, or 1Password item URI checks.
 
 DoD: `bash tests/no-secrets.sh` exits 0 (healthy: `no-secrets: all checks passed`). `git diff --name-only origin/main` lists only this folder and `tests/no-secrets.sh`.
 
