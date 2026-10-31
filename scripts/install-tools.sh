@@ -49,7 +49,7 @@ install_pinned_tool() {
   local dest="${install_dir}/${tool}"
   local tmp
   tmp="$(mktemp "${TMPDIR:-/tmp}/install-tools.XXXXXX")"
-  if ! gh release download "$tag" --repo "$GH_REPO" --pattern "$tool" --output "$tmp"; then
+  if ! gh release download "$tag" --repo "$GH_REPO" --pattern "$tool" --output "$tmp" --clobber; then
     rm -f "$tmp"
     return 1
   fi

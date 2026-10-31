@@ -24,6 +24,8 @@ if grep -q 'GITHUB_REPOSITORY' "$INSTALL_SCRIPT"; then
   fail "install script must not read GITHUB_REPOSITORY"
 fi
 [[ "$text" == *"--deny-self-hosted-runners"* ]] || fail "missing --deny-self-hosted-runners"
+grep -qE 'gh release download[^;]*--clobber' "$INSTALL_SCRIPT" \
+  || fail "release download must pass --clobber for pre-created mktemp output"
 case "$text" in
   *launchctl*) fail "install script must not contain launchctl" ;;
   *sudo*) fail "install script must not contain sudo" ;;
@@ -143,17 +145,34 @@ fi
 if [[ "${1:-}" == "attestation" && "${2:-}" == "verify" ]]; then
   exit 0
 fi
-while [[ $# -gt 0 ]]; do
-  case "$1" in
-    --output)
-      printf 'stub-binary' >"$2"
-      exit 0
-      ;;
-    *)
-      shift
-      ;;
-  esac
-done
+if [[ "${1:-}" == "release" && "${2:-}" == "download" ]]; then
+  clobber=0
+  outfile=""
+  shift 2
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --clobber)
+        clobber=1
+        shift
+        ;;
+      --output)
+        outfile="$2"
+        shift 2
+        ;;
+      *)
+        shift
+        ;;
+    esac
+  done
+  if [[ -n "$outfile" ]]; then
+    if [[ -e "$outfile" && "$clobber" -eq 0 ]]; then
+      echo "already exists (use \`--clobber\` to overwrite file or \`--skip-existing\` to skip file)" >&2
+      exit 1
+    fi
+    printf 'stub-binary' >"$outfile"
+  fi
+  exit 0
+fi
 exit 0
 STUB
 chmod +x "$TMP_HOME/bin-stub/gh"
@@ -170,6 +189,7 @@ export GH_ARGS_LOG
 env -u GH_REPO PINS_FILE="$PINS" bash "$INSTALL_SCRIPT" || fail "pinned install with stub gh failed"
 dest="$TMP_HOME/bin/backup-folder"
 [[ -f "$dest" ]] || fail "expected installed binary"
+ok "pinned install succeeds when mktemp output path already exists"
 mode="$(stat -c '%a' "$dest" 2>/dev/null || stat -f '%OLp' "$dest")"
 [[ "$mode" == "755" ]] || fail "expected mode 755, got $mode"
 grep -F -- "--repo ${default_repo}" "$GH_ARGS_LOG" >/dev/null || fail "unset GH_REPO did not use the installer default"
