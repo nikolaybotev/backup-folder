@@ -649,9 +649,18 @@ if [[ ! -d "$INH_DEST2/$two_day_old" ]]; then
   ls -la "$INH_DEST2" >&2
   exit 1
 fi
-if [[ "$(count_snapshot_dirs "$INH_DEST")" -ne 1 || "$(count_snapshot_dirs "$INH_DEST2")" -ne 1 ]]; then
-  echo "Both destinations should gain one new snapshot" >&2
-  ls -la "$INH_DEST" "$INH_DEST2" >&2
+if [[ "$(count_snapshot_dirs "$INH_DEST")" -ne 1 ]]; then
+  echo "Inheriting folder should have only the new snapshot after pruning the seed" >&2
+  ls -la "$INH_DEST" >&2
+  exit 1
+fi
+if [[ "$(count_snapshot_dirs "$INH_DEST2")" -ne 2 ]]; then
+  echo "Override folder should keep the seeded snapshot and gain a new one" >&2
+  ls -la "$INH_DEST2" >&2
+  exit 1
+fi
+if ! grep -q 'OK snapshot' "$INH_DEST/backup.log" || ! grep -q 'OK snapshot' "$INH_DEST2/backup.log"; then
+  echo "Both destinations should log a new snapshot" >&2
   exit 1
 fi
 
