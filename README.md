@@ -62,6 +62,8 @@ Cloud agents boot the default image and run [`.cursor/install.sh`](.cursor/insta
 
 `drop-box-watcher` watches one folder (the iCloud **Drop Box** folder on Desktop; Apple's iCloud exclude list uses the name `Dropbox`, which is not this folder). When a file is fully present on disk, it POSTs a nudge to a Grok Bot routine webhook. List the folder and move files; the watcher does not.
 
+Run `scripts/test-webhook.sh` in this repo to send one manual empty POST using the `url` and `key` from your watcher config.
+
 Example config: [`drop-box-watcher.example.toml`](drop-box-watcher.example.toml). LaunchAgent template: [`launchd/drop-box-watcher.plist.template`](launchd/drop-box-watcher.plist.template) (label `com.nikolaybotev.drop-box-watcher`).
 
 **Manual install on a Mac (not CI or cloud agents):**
