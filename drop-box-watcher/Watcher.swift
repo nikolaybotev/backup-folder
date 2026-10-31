@@ -3,7 +3,7 @@ import Foundation
 
 /// Watches one folder: readiness, claims, and enqueue to `WebhookNotifier` (FR5–FR10).
 final class DropBoxFolderWatcher: NSObject, NSFilePresenter {
-    let presentedItemURL: URL?
+    var presentedItemURL: URL?
     let presentedItemOperationQueue: OperationQueue = {
         let q = OperationQueue()
         q.name = "drop-box-watcher"
@@ -12,13 +12,14 @@ final class DropBoxFolderWatcher: NSObject, NSFilePresenter {
     }()
 
     /// Path from config (may be a symlink); used for `NSFilePresenter`.
-    private let watchFolderConfigured: URL
+    private var watchFolderConfigured: URL
     /// Resolved directory path; used for FSEvents and direct-child checks.
-    private let watchFolderURL: URL
-    private let ignorePatterns: [String]
-    private let notifier: WebhookNotifier
-    private let log: OperationalLog
+    private var watchFolderURL: URL
+    private var ignorePatterns: [String]
+    private var notifier: WebhookNotifier
+    private var log: OperationalLog
     private var claimed: Set<WebhookClaim> = []
+    private var presenterGeneration = 0
     private var fseventStream: FSEventStreamRef?
     private let fseventsQueue = DispatchQueue(label: "drop-box-watcher.fsevents")
     /// Separate coordinator for claim reads (avoid re-entrant coordination on the presenter queue).
@@ -51,6 +52,36 @@ final class DropBoxFolderWatcher: NSObject, NSFilePresenter {
     func start() {
         log.writeLine("started watch_folder=\(watchFolderURL.path)")
         startFSEvents()
+    }
+
+    func scheduleRegister() {
+        let generation = presenterGeneration
+        DispatchQueue.main.async { [self] in
+            guard generation == self.presenterGeneration else { return }
+            self.registerOnMainRunLoop()
+        }
+    }
+
+    /// Stops the current folder watch, then starts the new folder, ignore list, notifier, and log.
+    /// In-flight webhook posts stay on the notifier they already use.
+    func retarget(folderURL: URL, ignorePatterns: [String], notifier: WebhookNotifier, log: OperationalLog) {
+        presentedItemOperationQueue.addOperation { [self] in
+            let previousFolder = self.watchFolderURL.path
+            self.invalidateFSEvents(wait: true)
+            NSFileCoordinator.removeFilePresenter(self)
+            self.watchFolderConfigured = folderURL.standardizedFileURL
+            self.watchFolderURL = folderURL.resolvingSymlinksInPath().standardizedFileURL
+            self.presentedItemURL = self.watchFolderConfigured
+            self.ignorePatterns = ignorePatterns
+            self.notifier = notifier
+            self.log = log
+            if self.watchFolderURL.path != previousFolder {
+                self.claimed.removeAll()
+            }
+            self.presenterGeneration += 1
+            self.start()
+            self.scheduleRegister()
+        }
     }
 
     func registerOnMainRunLoop() {
@@ -283,6 +314,17 @@ final class DropBoxFolderWatcher: NSObject, NSFilePresenter {
         var paths = [watchFolderURL.path, watchFolderConfigured.path]
         var seen = Set<String>()
         return paths.filter { seen.insert($0).inserted }
+    }
+
+    private func invalidateFSEvents(wait: Bool) {
+        guard let stream = fseventStream else { return }
+        FSEventStreamStop(stream)
+        FSEventStreamInvalidate(stream)
+        fseventStream = nil
+        if wait {
+            fseventsQueue.sync {}
+        }
+        FSEventStreamRelease(stream)
     }
 
     private func startFSEvents() {

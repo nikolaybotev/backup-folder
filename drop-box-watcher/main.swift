@@ -16,6 +16,28 @@ enum DropBoxWatcherProcess {
     static var log: OperationalLog!
     static var notifier: WebhookNotifier!
     static var watcher: DropBoxFolderWatcher!
+    static var config: DropBoxWatcherConfig!
+    static var configWatch: ConfigWatch!
+}
+
+func applyReloadedConfig(_ updated: DropBoxWatcherConfig, log newLog: OperationalLog) {
+    guard let webhookURL = URL(string: updated.webhookURL) else { return }
+    let notifier = WebhookNotifier(
+        webhookURL: webhookURL,
+        webhookKey: updated.webhookKey,
+        transport: URLSessionWebhookTransport(),
+        sleeper: RealWebhookSleeper(),
+        log: newLog
+    )
+    DropBoxWatcherProcess.config = updated
+    DropBoxWatcherProcess.log = newLog
+    DropBoxWatcherProcess.notifier = notifier
+    DropBoxWatcherProcess.watcher.retarget(
+        folderURL: URL(fileURLWithPath: updated.watchFolder),
+        ignorePatterns: updated.ignorePatterns,
+        notifier: notifier,
+        log: newLog
+    )
 }
 
 func failStderr(_ message: String) -> Never {
@@ -102,6 +124,7 @@ let notifier = WebhookNotifier(
 )
 DropBoxWatcherProcess.log = log
 DropBoxWatcherProcess.notifier = notifier
+DropBoxWatcherProcess.config = config
 
 DropBoxWatcherProcess.watcher = DropBoxFolderWatcher(
     watchFolderURL: watchURL,
@@ -110,7 +133,16 @@ DropBoxWatcherProcess.watcher = DropBoxFolderWatcher(
     log: log
 )
 DropBoxWatcherProcess.watcher.start()
-DispatchQueue.main.async {
-    DropBoxWatcherProcess.watcher.registerOnMainRunLoop()
-}
+DropBoxWatcherProcess.watcher.scheduleRegister()
+DropBoxWatcherProcess.configWatch = ConfigWatch(
+    configPath: configPath,
+    snapshot: {
+        ConfigWatchSnapshot(config: DropBoxWatcherProcess.config, log: DropBoxWatcherProcess.log)
+    },
+    apply: { updated, newLog in
+        applyReloadedConfig(updated, log: newLog)
+    }
+)
+DropBoxWatcherProcess.configWatch.start()
+DropBoxWatcherProcess.configWatch.reloadNow()
 dispatchMain()

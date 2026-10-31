@@ -22,6 +22,7 @@ struct DropBoxWatcherTests {
         testConfigParser()
         testTomlSubset()
         testConfigPermissions()
+        testConfigReload()
         testIgnorePatterns()
         testReadinessTable()
         testLogRedaction()
@@ -358,6 +359,105 @@ struct DropBoxWatcherTests {
 
         assert(configPermissionsAcceptable(at: path200), "0200 acceptable")
         assert(!configPermissionsAcceptable(at: pathMissing), "missing path")
+    }
+
+    static func testConfigReload() {
+        let key = testWebhookKey
+        let bodyMarker = "raw-file-body-marker"
+        let base = """
+        watch_folder = "/tmp/watch"
+        [webhook]
+        url = "https://example.invalid/routine"
+        key = "\(key)"
+        [behavior]
+        ignore = [".DS_Store"]
+        [log]
+        path = "/tmp/log"
+        """
+        guard case .success(let current) = parseConfigTOML(base) else { fail("reload baseline") }
+
+        let commented = "# comment only\n" + base
+        guard case .success(let same) = parseConfigTOML(commented) else { fail("comment-only parse") }
+        switch decideConfigReload(current: current, read: .success(same)) {
+        case .unchanged:
+            assert(
+                decideConfigReload(current: current, read: .success(same)).logLine == nil,
+                "equal config should not log"
+            )
+        default:
+            fail("equal config should keep the live watch")
+        }
+
+        var moved = current
+        moved.watchFolder = "/tmp/watch-two"
+        switch decideConfigReload(current: current, read: .success(moved)) {
+        case .applyAndLog(let updated):
+            assert(updated == moved, "apply returns the new config")
+            assert(updated != current, "apply replaces the previous config")
+            let line = ConfigReloadDecision.applyAndLog(updated).logLine
+            assert(line == "config reloaded", "reload log line")
+            if line?.contains(key) == true { fail("reload log contains webhook key") }
+        default:
+            fail("new config should apply")
+        }
+
+        var rekeyed = current
+        rekeyed.webhookKey = key + "-next"
+        switch decideConfigReload(current: current, read: .success(rekeyed)) {
+        case .applyAndLog(let updated):
+            assert(updated.webhookKey == rekeyed.webhookKey, "webhook key participates in equality")
+            if ConfigReloadDecision.applyAndLog(updated).logLine?.contains(key) == true {
+                fail("apply log contains webhook key")
+            }
+        default:
+            fail("webhook key change should apply")
+        }
+
+        switch decideConfigReload(current: current, read: .failure(.permissionsTooOpen)) {
+        case .keepAndLog(let line):
+            assert(line == "config reload rejected: config permissions too open", "permission rejection")
+            if line.contains(key) || line.contains(bodyMarker) { fail("permission rejection leaks") }
+        default:
+            fail("bad read should keep the previous config")
+        }
+
+        switch decideConfigReload(current: current, read: .failure(.io("open failed \(key) \(bodyMarker)"))) {
+        case .keepAndLog(let line):
+            assert(line == "config reload rejected: config io error", "io rejection")
+            if line.contains(key) || line.contains(bodyMarker) { fail("io rejection leaks") }
+        default:
+            fail("io failure should keep the previous config")
+        }
+
+        let invalid = "\(bodyMarker)\n\(key)\nnot a config\n"
+        switch parseConfigTOML(invalid) {
+        case .success:
+            fail("invalid text should not parse")
+        case .failure(let error):
+            switch decideConfigReload(current: current, read: .failure(error)) {
+            case .keepAndLog(let line):
+                assert(line.hasPrefix("config reload rejected:"), "parse rejection prefix")
+                if line.contains(key) || line.contains(bodyMarker) { fail("parse rejection leaks") }
+            default:
+                fail("parse failure should keep the previous config")
+            }
+        }
+
+        let loosePath = FileManager.default.temporaryDirectory.path + "/dbw-reload-0644.toml"
+        defer { try? FileManager.default.removeItem(atPath: loosePath) }
+        try! writeFile(path: loosePath, contents: invalid, mode: 0o644)
+        switch loadConfig(from: loosePath) {
+        case .failure(let error):
+            switch decideConfigReload(current: current, read: .failure(error)) {
+            case .keepAndLog(let line):
+                assert(line.hasPrefix("config reload rejected:"), "0644 reload rejection")
+                if line.contains(key) || line.contains(bodyMarker) { fail("0644 reload leaks") }
+            default:
+                fail("0644 reload should keep the previous config")
+            }
+        case .success:
+            fail("0644 reload read should fail")
+        }
     }
 
     static func testIgnorePatterns() {
