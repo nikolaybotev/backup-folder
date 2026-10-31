@@ -119,6 +119,18 @@ jobs:
           eval "$(mise activate bash)"
           swiftc -O -o retention-tests Sources/backup-folder/Retention.swift tests/retention-tests.swift
           ./retention-tests
+      - name: Folder job unit tests
+        run: |
+          set -euo pipefail
+          export PATH="${HOME}/.local/bin:${PATH}"
+          eval "$(mise activate bash)"
+          swiftc -parse-as-library -o folder-job-tests \
+            Sources/ToolConfig/TomlSubset.swift \
+            Sources/backup-folder/PathCheck.swift \
+            Sources/backup-folder/BackupConfig.swift \
+            Sources/backup-folder/FolderJob.swift \
+            tests/folder-job-tests.swift
+          ./folder-job-tests
       - name: Path containment unit tests
         run: |
           set -euo pipefail

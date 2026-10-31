@@ -49,7 +49,7 @@ done < "$RESTORE"
 require_anchor() {
   local file="$1"
   local anchor="$2"
-  if ! grep -Fq "$anchor" "$file"; then
+  if ! grep -Fq -- "$anchor" "$file"; then
     fail "$(basename "$file") missing anchor: $anchor"
   fi
 }
@@ -93,7 +93,6 @@ setup_anchors=(
   'code-signing'
   'ensure-backup-dirs.sh'
   'home-mirrored'
-  'com.nikolaybotev.backup.NAME'
   'drop-box-watcher.plist.template'
   'Drop Box'
   'config.toml'
@@ -128,6 +127,15 @@ done
 for a in "${restore_anchors[@]}"; do
   require_anchor "$RESTORE" "$a"
 done
+
+if grep -Fq 'com.nikolaybotev.backup.NAME' "$SETUP"; then
+  fail "docs/setup.md still contains com.nikolaybotev.backup.NAME"
+fi
+require_anchor "$SETUP" 'com.nikolaybotev.backup'
+require_anchor "$SETUP" '--config'
+require_anchor "$SETUP" '/ABS/PATH/TO/HOME'
+require_anchor "$SETUP" 'backup-job.md'
+require_anchor "$SETUP" 'backup-folder.example.toml'
 
 forbidden_patterns=(
   'roger-bootstrap'

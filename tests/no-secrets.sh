@@ -35,10 +35,14 @@ def load_plist(path: pathlib.Path) -> dict:
         return plistlib.load(f)
 
 b = load_plist(backup)
-if b.get("Label") != "com.nikolaybotev.backup.NAME":
+if b.get("Label") != "com.nikolaybotev.backup":
     sys.exit(f"backup Label: {b.get('Label')!r}")
 args = b.get("ProgramArguments") or []
-want_args = ["/Users/USER/bin/backup-folder", "/ABS/SOURCE", "/ABS/BACKUP-DIR"]
+want_args = [
+    "/ABS/PATH/TO/HOME/bin/backup-folder",
+    "--config",
+    "/ABS/PATH/TO/HOME/.config/backup-folder/config.toml",
+]
 if args != want_args:
     sys.exit(f"backup ProgramArguments: {args!r}")
 if "StartInterval" in b:
@@ -50,6 +54,9 @@ if "Hour" in sci:
     sys.exit("backup StartCalendarInterval must not set Hour")
 if b.get("RunAtLoad") is not False:
     sys.exit(f"backup RunAtLoad: {b.get('RunAtLoad')!r}")
+for absent in ("KeepAlive", "StandardOutPath", "StandardErrorPath"):
+    if absent in b:
+        sys.exit(f"backup template must not contain {absent}")
 
 w = load_plist(wg)
 if w.get("Label") != "com.wireguard.wg0":
