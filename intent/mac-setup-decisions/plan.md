@@ -2,8 +2,8 @@
 
 | | |
 |---|---|
-| Implements | [spec.md](spec.md) Draft 1 |
-| Status | Draft 1 |
+| Implements | [spec.md](spec.md) Draft 2 |
+| Status | Draft 2 |
 | Stage | 3 · Build |
 
 Spec wins. Update this file in the same change whenever implementation departs from it. The only allowed edit under `intent/` during Phase 0 is an appended build note on this file. Do not edit any other `intent/` folder, and do not rewrite the spec.
@@ -35,7 +35,7 @@ Do not edit: `.github/workflows/release.yml`, `.github/workflows/test.yml`, `.gi
 1. Do not edit `.github/workflows/release.yml`. The two `codesign --verify --strict` lines are already on `./backup-folder` and `"$watcher_bin"`, after `bash scripts/build.sh` and before the tag push. Do not add a second copy. Do not add `spctl`.
 2. In `tests/release-workflow.sh`, keep every current `require_in_release` call and every current ban, including the `spctl` ban. Require the two exact strings `codesign --verify --strict ./backup-folder` and `codesign --verify --strict "$watcher_bin"`. Fail unless `codesign --verify --strict` occurs exactly twice in `release.yml`. Fail unless both lines are after `bash scripts/build.sh` and before `git push origin "refs/tags/`.
 3. Do not edit `.github/workflows/test.yml`. Leave both `Signature=adhoc` checks.
-4. Apply spec FR4 to `docs/setup.md` and spec FR5 to `docs/restore.md`. Keep 33 and 7 bullets. Do not add a self-hosted runner operation. Do not add a LaunchAgent. Do not add Xcode. Do not remove the `pinentry`, iStat Menus, or MacVim setup steps. Do not add a rename sentence. Do not write `roger-bootstrap` into either doc.
+4. Apply spec FR4 to `docs/setup.md` and spec FR5 to `docs/restore.md`. Keep 33 and 7 bullets. The restore paragraph names the existing LaunchAgent repeat and the `scripts/install-tools.sh` re-run. Do not add a self-hosted runner operation. Do not add a LaunchAgent. Do not add Xcode. Do not remove the `pinentry`, iStat Menus, or MacVim setup steps. Do not remove `Until then the script skips unpinned tools.` or `until the disk is unlocked.` The word "until" stays out of the notarization privacy bullet only. Do not add a rename sentence. Do not write `roger-bootstrap` into either doc.
 5. Apply spec FR7 to `tests/setup-docs.sh`. Keep the current anchors and the counts. Add the new anchors. Fail on the FR6 strings.
 6. Do not run `scripts/install-tools.sh` or `scripts/ensure-backup-dirs.sh`. Do not write a pin. Do not push a tag. Do not edit a ruleset. Do not run `launchctl`. Do not write `~/Backups`. Do not put a WireGuard key, address, or port in the diff. Install timing stays on hold.
 7. Open one pull request, ready for review, conventional commit. Do not merge.
@@ -67,6 +67,11 @@ grep -F 'GnuPG' docs/restore.md
 grep -F 'Grok Bot' docs/restore.md
 grep -F '1Password CLI' docs/restore.md
 grep -F 'not operators of the machine' docs/restore.md
+grep -F 'existing LaunchAgent repeat' docs/restore.md
+grep -F '`scripts/install-tools.sh` re-run' docs/restore.md
+grep -F 'Until then the script skips unpinned tools.' docs/setup.md
+grep -F 'until the disk is unlocked.' docs/setup.md
+if grep -F 'until Apple notarization' docs/setup.md docs/restore.md; then exit 1; fi
 if grep -F 'roger-bootstrap' docs/setup.md docs/restore.md; then exit 1; fi
 if grep -E '\(Q[2-6]\)|stays open|left unfinished|notarization is decided|until you name them' docs/setup.md docs/restore.md; then exit 1; fi
 test "$(grep -c 'Signature=adhoc' .github/workflows/test.yml)" -eq 2

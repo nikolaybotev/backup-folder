@@ -73,6 +73,6 @@ WireGuard templates stay placeholders.
 - D3. Remote Login (SSH) is on. The setup doc instructs. It does not enable SSH.
 - D4. Energy settings are instructions only: Low Power Mode off; "Prevent automatic sleeping when the display is off" on; "Wake for network access" on; "Start up when power is connected" set to "After power failure".
 - D5. The setup doc is instructions. Agents are not operators and do not apply the settings. Do not add self-hosted-runner operations. Installing Cursor and signing in stays an app-setup instruction.
-- D6. A restore installs nothing beyond the bootstrap repo plus the Grok Bot app, the Cursor app, the 1Password app and CLI (`op`), Homebrew with `gh`, `git`, and GnuPG via the separate dev bootstrap, and `wireguard-tools` and `wireguard-go` from Homebrew. No Xcode. No other LaunchAgents to add.
+- D6. A restore installs nothing beyond the bootstrap repo plus the Grok Bot app, the Cursor app, the 1Password app and CLI (`op`), Homebrew with `gh`, `git`, and GnuPG via the separate dev bootstrap, and `wireguard-tools` and `wireguard-go` from Homebrew, plus the existing LaunchAgent repeat and the `scripts/install-tools.sh` re-run. No Xcode. No other LaunchAgents to add.
 - D7. Apple Developer ID notarization is out of scope. There is no plan to notarize. Docs must not leave it open or imply a later phase.
 - D8. Install timing stays on hold. The build phase does not run an installer, does not set a pin, does not push a tag by hand, and does not edit rulesets.

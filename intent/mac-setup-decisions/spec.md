@@ -3,7 +3,7 @@
 | | |
 |---|---|
 | Derived from | [intent.md](intent.md) (2026-10-31) |
-| Status | Draft 1 |
+| Status | Draft 2 |
 | Stage | 2 · Design |
 
 ## 1. Summary
@@ -112,10 +112,10 @@ Leave `Manual: Install Cursor and sign in.` unchanged. Leave the `pinentry`, iSt
 FR5. In `docs/restore.md`, keep the two intro paragraphs and add this paragraph after them. It is not a bullet.
 
 ```
-A restore installs nothing beyond the bootstrap repo plus the Grok Bot app, the Cursor app, the 1Password app and the 1Password CLI (`op`), Homebrew with `gh`, `git`, and GnuPG via the separate dev bootstrap, and `wireguard-tools` and `wireguard-go` from Homebrew. It does not install Xcode. It does not add any other LaunchAgent. Agents who build this repo are not operators of the machine and do not install these items.
+A restore installs nothing beyond the bootstrap repo plus the Grok Bot app, the Cursor app, the 1Password app and the 1Password CLI (`op`), Homebrew with `gh`, `git`, and GnuPG via the separate dev bootstrap, and `wireguard-tools` and `wireguard-go` from Homebrew, plus the existing LaunchAgent repeat and the `scripts/install-tools.sh` re-run. The LaunchAgent repeat is the WireGuard daemon and the backup-folder and drop-box-watcher agents when their plists are missing. The re-run is for a pinned tool whose `~/bin` binary is missing or should move to the pin. It does not install Xcode. It does not add any other LaunchAgent. Agents who build this repo are not operators of the machine and do not install these items.
 ```
 
-That set is the closed answer for what else a restore installs. The existing restore bullets stay, including the repeat of the WireGuard daemon and the backup-folder and drop-box-watcher LaunchAgents, and the re-run of `scripts/install-tools.sh`. Those agents are already in the doc. They are not an added LaunchAgent. Delete only the sentence `Other apps or tools beyond this hub stay open until you name them.` from the hardware-change bullet. Leave the rest of that bullet.
+That paragraph is the closed install set. The existing restore bullets stay, including that LaunchAgent repeat and that re-run. They are not an added LaunchAgent. Delete only the sentence `Other apps or tools beyond this hub stay open until you name them.` from the hardware-change bullet. Leave the rest of that bullet.
 
 FR6. `docs/setup.md` and `docs/restore.md` do not contain `roger-bootstrap`, `(Q2)`, `(Q3)`, `(Q4)`, `(Q5)`, `(Q6)`, `stays open`, `left unfinished`, `notarization is decided`, or `until you name them`. They do not contain a hostname or a machine name. Checked on this commit, neither file leaves a rename open, so Phase 0 does not add a rename sentence and does not rename the repo. The name in commands stays `nikolaybotev/backup-folder`.
 
@@ -123,7 +123,7 @@ FR7. `tests/setup-docs.sh` keeps the counts 33 and 7 and keeps every current anc
 
 FR8. The spec pull request's diff is only `intent/mac-setup-decisions/`. Phase 0 does not run an installer, does not write a pin file, does not push a tag, does not edit a ruleset, does not run `launchctl`, and does not write under `~/Backups`. Install timing stays on hold: do not add a schedule, and do not change the heads-up sentences except for the setup sentence FR4 adds.
 
-FR9. Apple Developer ID notarization is out of scope. The docs use the FR4 privacy bullet and no other notarization sentence. They do not say the decision is open, do not say "until", and do not point at a later phase for notarization.
+FR9. Apple Developer ID notarization is out of scope. The docs use the FR4 privacy bullet and no other notarization sentence. In that privacy bullet, do not leave the decision open, do not use the word "until", and do not point at a later phase for notarization. The "until" ban is that sentence only. FR4 leaves the install-tools bullet and the FileVault caveat unchanged, so `Until then the script skips unpinned tools.` and `until the disk is unlocked.` stay.
 
 ## 6. Acceptance criteria
 
@@ -153,9 +153,9 @@ AC7. Merging the spec pull request still runs job `publish` on `main`. With neit
 
 **D5 — Agents are not operators.** The setup intro says so. Do not add self-hosted-runner operations. The unfinished self-hosted bullet is closed by saying the doc does not add a runner, a token, a label, or an install command. `Manual: Install Cursor and sign in.` stays the app-setup instruction. Why: the setup doc is instructions for a Mac, nothing more. What was rejected: inventing a runner token, label, or install command, and leaving the step unfinished.
 
-**D6 — The restore install set is closed.** A restore installs nothing beyond the bootstrap repo plus the Grok Bot app, the Cursor app, the 1Password app and the 1Password CLI (`op`), Homebrew with `gh`, `git`, and GnuPG via the separate dev bootstrap, and `wireguard-tools` and `wireguard-go` from Homebrew. No Xcode. No other LaunchAgent is added. The restore doc already repeats the WireGuard daemon and the backup-folder and drop-box-watcher LaunchAgents, and it already re-runs `scripts/install-tools.sh`. Those stay. `pinentry`, iStat Menus, and MacVim stay on the setup checklist and are not added to restore. Why: the old hardware bullet left other apps open. What was rejected: an Xcode step, a new LaunchAgent, and `until you name them`.
+**D6 — The restore install set is closed.** The restore paragraph names the app set and also names the existing LaunchAgent repeat and the `scripts/install-tools.sh` re-run. The repeat is the WireGuard daemon and the backup-folder and drop-box-watcher agents when their plists are missing. The re-run is for a pinned tool whose `~/bin` binary is missing or should move to the pin. No Xcode. No other LaunchAgent is added. `pinentry`, iStat Menus, and MacVim stay on the setup checklist and are not added to restore. Why: the old hardware bullet left other apps open, and the closed set has to name the reinstalls that the restore doc already has. What was rejected: an Xcode step, a new LaunchAgent, and `until you name them`.
 
-**D7 — Notarization is out of scope.** There is no plan to notarize. The privacy bullet states that and does not point at a later phase. The release path stays `codesign --verify --strict`, not `spctl`. Why: an open "until notarization is decided" sentence would leave the question open. What was rejected: notarization, a later notarization phase, and `spctl`.
+**D7 — Notarization is out of scope.** There is no plan to notarize. The privacy bullet states that and does not point at a later phase. The word "until" is banned only in that privacy bullet. The install-tools bullet keeps `Until then the script skips unpinned tools.` The FileVault caveat keeps `until the disk is unlocked.` The release path stays `codesign --verify --strict`, not `spctl`. Why: an open "until notarization is decided" sentence would leave the question open, and a docs-wide "until" ban would delete sentences FR4 keeps. What was rejected: notarization, a later notarization phase, and `spctl`.
 
 **D8 — Install timing stays on hold.** Phase 0 does not run an installer, does not set a pin, does not push a tag by hand, and does not edit rulesets. The heads-up sentences stay. Why: when a machine is installed is not decided here. What was rejected: a schedule, a pin commit, and a hand-pushed tag.
 
