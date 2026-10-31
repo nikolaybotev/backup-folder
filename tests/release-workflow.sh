@@ -108,6 +108,31 @@ if grep -q 'spctl' "$RELEASE_YML"; then
   fail "release.yml must not use spctl"
 fi
 
+verify_count="$(grep -c 'codesign --verify --strict' "$RELEASE_YML" || true)"
+if [[ "$verify_count" -ne 2 ]]; then
+  fail "release.yml must contain codesign --verify --strict exactly twice (found $verify_count)"
+fi
+
+require_in_release 'codesign --verify --strict ./backup-folder' "codesign verify strict on backup-folder"
+require_in_release 'codesign --verify --strict "$watcher_bin"' "codesign verify strict on watcher"
+
+build_line_num="$(grep -n 'bash scripts/build.sh' "$RELEASE_YML" | head -1 | cut -d: -f1)"
+tag_push_line_num="$(grep -n 'git push origin "refs/tags/' "$RELEASE_YML" | head -1 | cut -d: -f1)"
+verify_backup_line_num="$(grep -n 'codesign --verify --strict ./backup-folder' "$RELEASE_YML" | head -1 | cut -d: -f1)"
+verify_watcher_line_num="$(grep -n 'codesign --verify --strict "\$watcher_bin"' "$RELEASE_YML" | head -1 | cut -d: -f1)"
+
+if [[ -z "$build_line_num" || -z "$tag_push_line_num" || -z "$verify_backup_line_num" || -z "$verify_watcher_line_num" ]]; then
+  fail "could not locate build.sh, tag push, or verify lines in release.yml"
+fi
+
+if [[ "$verify_backup_line_num" -le "$build_line_num" || "$verify_watcher_line_num" -le "$build_line_num" ]]; then
+  fail "codesign --verify --strict lines must be after bash scripts/build.sh"
+fi
+
+if [[ "$verify_backup_line_num" -ge "$tag_push_line_num" || "$verify_watcher_line_num" -ge "$tag_push_line_num" ]]; then
+  fail "codesign --verify --strict lines must be before git push origin \"refs/tags/"
+fi
+
 if [[ "$release_text" == *'SIGN_IDENTITY'* ]]; then
   sign_line="$(grep -n 'SIGN_IDENTITY' "$RELEASE_YML" | head -1 || true)"
   build_line="$(grep -n 'bash scripts/build.sh' "$RELEASE_YML" | head -1 || true)"

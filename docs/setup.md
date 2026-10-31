@@ -1,6 +1,6 @@
 # Setup
 
-Run this checklist on your Mac. GitHub Actions and cloud agents do not run these steps. Give a heads-up before anything in this doc is installed or changed on the Mac.
+Run this checklist on your Mac. GitHub Actions and cloud agents do not run these steps. Give a heads-up before anything in this doc is installed or changed on the Mac. Agents who build this repo are not operators of the machine and do not apply these settings.
 
 ## Steps
 
@@ -8,8 +8,8 @@ Run this checklist on your Mac. GitHub Actions and cloud agents do not run these
 - Manual: In Finder, set Desktop and Documents to **Keep Downloaded**, whole folders, so tools and backups see local files.
 - Manual: Turn FileVault on. Do not enable auto-login. After a reboot, log in once via Screen Sharing before iCloud syncs.
 - Manual: Turn Screen Sharing on.
-- Manual: Remote Login (SSH) is not turned on by this doc. Whether to enable it stays open (Q2).
-- Manual: Energy: the machine should avoid sleep and start after power failure. The exact System Settings clicks stay open (Q3); this doc states the goal only.
+- Manual: Remote Login (SSH) is on. This doc only instructs that setting. It does not enable SSH.
+- Manual: Energy settings, as instructions only: Low Power Mode off; "Prevent automatic sleeping when the display is off" on; "Wake for network access" on; "Start up when power is connected" set to "After power failure". This doc does not apply those settings.
 - Manual: Choose a computer name. macOS publishes that name plus `.local`.
 - Script: Run the general bootstrap, with its confirm prompt: `sh -c "$(curl -fsSL https://raw.github.com/OWNER/bootstrap/main/install.sh)"`. On a **fresh Mac**, that curl alone is not enough: `install.Darwin.sh` is `sh -e` and calls `jq` before it opens the Homebrew and mise pages, and a fresh Mac does not ship `jq`, so the script can exit before those pages open. Later updates use `~/.bootstrap/update`. This repo does not copy `OWNER/bootstrap`.
 - Manual: Finish the Homebrew and mise installs that the bootstrap opens in a browser (for example the pages at brew.sh and mise.en.dev). See the bootstrap repo for details.
@@ -20,7 +20,7 @@ Run this checklist on your Mac. GitHub Actions and cloud agents do not run these
 - Manual: Set `user.signingkey` in the gitconfig the bootstrap wrote. That gitconfig already sets `commit.gpgsign` and `tag.gpgsign`. This repo does not ship a gitconfig.
 - Manual: Install the Grok Bot app and sign in. Register this Mac. Grant Files & Folders for Desktop and Documents only. Leave Downloads, iCloud Drive, and Removable Volumes off.
 - Manual: Install Cursor and sign in.
-- Manual: A **self-hosted** runner is named as a step and left unfinished. This doc does not invent a runner token, label, or install command.
+- Manual: This doc does not add a self-hosted runner, a runner token, a runner label, or a runner install command. Installing Cursor and signing in is the app-setup instruction in the step above.
 - Manual: Install the 1Password app, sign in, and install the 1Password CLI (`op`).
 - Manual: Install iStat Menus and MacVim.
 - Manual: Fill [`launchd/wg0.conf.template`](../launchd/wg0.conf.template) from 1Password into `/opt/homebrew/etc/wireguard/wg0.conf` using the placeholder tokens (`[PRIVATE_KEY]`, `[INTERFACE_ADDRESS]`, `[DNS]`, `[SERVER_PUBLIC_KEY]`, `[PRESHARED_KEY]`, `[ALLOWED_IPS]`, `[SERVER_PUBLIC_IP]`, `[PORT]`). Run `chmod 600` on the filled file. Do not commit the filled `wg0.conf`.
@@ -31,7 +31,7 @@ Run this checklist on your Mac. GitHub Actions and cloud agents do not run these
 - Manual: Point Time Machine at the Time Machine volume you named.
 - Script: Run [`scripts/install-tools.sh`](../scripts/install-tools.sh) once `~/.config/backup-folder/pins.txt` names real release tags (copy [`pins.txt.example`](../pins.txt.example) to that path first). Until then the script skips unpinned tools. Binaries install into `~/bin`.
 - Manual: One-time macOS code signing for release builds and CI: follow [OWNER/code-signing](https://github.com/OWNER/code-signing) (identity **Nikolay Botev Code Signing**; repository secrets `MACOS_SIGNING_P12_BASE64` and `MACOS_SIGNING_P12_PASSWORD`). Do not paste a `.p12` body or password into git.
-- Manual: Accept the macOS Desktop and Documents privacy prompts for each new binary. Repeat after every new binary. Unidentified-developer prompts are part of this step until Apple notarization is decided (Q6).
+- Manual: Accept the macOS Desktop and Documents privacy prompts for each new binary. Repeat after every new binary. Apple Developer ID notarization is out of scope. There is no plan to notarize.
 - Script: Run [`scripts/ensure-backup-dirs.sh`](../scripts/ensure-backup-dirs.sh) with the absolute **home-mirrored** snapshot directories. Each directory is `~/Backups` plus the source path relative to the home directory. Pass those paths as arguments at install time; source-folder names stay out of git. The script creates directories and does not delete anything.
 - Script: For each backup source, copy [`launchd/backup-folder.plist.template`](../launchd/backup-folder.plist.template) into `~/Library/LaunchAgents/`, replace `NAME`, `USER` (the output of `id -un`), `/ABS/SOURCE`, and `/ABS/BACKUP-DIR`, and load with `launchctl bootstrap gui/$(id -u)` on that plist. The template binary path is `/Users/USER/bin/backup-folder` because launchd does not expand `$HOME`. The label pattern is `com.nikolay.backup.NAME`. Choose source folders at install time; do not write personal folder names in git.
 - Script: Install the drop-box-watcher LaunchAgent from [`launchd/drop-box-watcher.plist.template`](../launchd/drop-box-watcher.plist.template). Replace each `/ABS/PATH/TO/HOME` placeholder in the template with your absolute home path (`$HOME` on a normal Mac is `/Users/$(id -un)`; launchd needs the absolute path). Point the agent at `~/bin/drop-box-watcher`. The label is `com.nikolay.drop-box-watcher`.
