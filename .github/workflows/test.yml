@@ -69,6 +69,8 @@ jobs:
         run: bash tests/macos-watcher.sh
       - name: Darwin-free unit tests
         run: bash tests/linux-unit.sh
+      - name: Test webhook helper
+        run: bash tests/test-webhook.sh
       - name: Secret and template scan
         run: bash tests/no-secrets.sh
       - name: Release workflow static check
@@ -118,6 +120,8 @@ jobs:
           swiftc --version
       - name: Darwin-free unit tests
         run: bash tests/linux-unit.sh
+      - name: Test webhook helper
+        run: bash tests/test-webhook.sh
       - name: Retention unit tests
         run: |
           set -euo pipefail
