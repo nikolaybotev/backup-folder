@@ -126,7 +126,7 @@ jobs:
           security list-keychains -d user -s "$KEYCHAIN" $(security list-keychains -d user | tr -d '"')
 
           if [[ -z "${SIGN_IDENTITY:-}" ]]; then
-            SIGN_IDENTITY="$(security find-identity -v -p codesigning "$KEYCHAIN" | bash scripts/signing-identity.sh)"
+            SIGN_IDENTITY="$(security find-identity -p codesigning "$KEYCHAIN" | bash scripts/signing-identity.sh)"
           fi
           if [[ -z "${SIGN_IDENTITY:-}" ]]; then
             echo "release: missing signing identity" >&2

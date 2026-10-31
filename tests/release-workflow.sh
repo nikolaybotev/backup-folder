@@ -57,7 +57,7 @@ require_in_release 'pull-requests: read' "pull-requests read permission"
 require_in_release 'MACOS_SIGNING_P12_BASE64' "MACOS_SIGNING_P12_BASE64 secret"
 require_in_release 'MACOS_SIGNING_P12_PASSWORD' "MACOS_SIGNING_P12_PASSWORD secret"
 require_in_release 'release: missing ' "missing-secret error prefix"
-require_in_release 'security find-identity -v -p codesigning "$KEYCHAIN"' "find-identity on the imported keychain"
+require_in_release 'security find-identity -p codesigning "$KEYCHAIN"' "find-identity on the imported keychain"
 require_in_release 'bash scripts/signing-identity.sh' "signing-identity helper"
 require_in_release 'release: missing signing identity' "missing signing identity fails the release"
 require_in_release 'bash scripts/build.sh' "single build.sh invocation"
@@ -186,6 +186,10 @@ fi
 
 if grep -q 'GITHUB_REPOSITORY' "$RELEASE_YML"; then
   fail "release.yml must not read GITHUB_REPOSITORY"
+fi
+
+if grep -q 'find-identity -v' "$RELEASE_YML"; then
+  fail "release.yml must not pass -v to find-identity"
 fi
 
 bash "$ROOT/tests/signing-identity-test.sh"
