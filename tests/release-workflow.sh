@@ -64,6 +64,8 @@ require_in_release 'release: missing signing identity' "missing signing identity
 require_in_release 'bash scripts/build.sh' "single build.sh invocation"
 require_in_release 'codesign --verify --strict' "codesign verify strict"
 require_in_release 'SHA256SUMS' "checksum file"
+require_in_release 'bash scripts/release-sha256sums.sh write' "release SHA256SUMS writer"
+require_in_release 'bash scripts/release-sha256sums.sh verify-artifacts' "release download-layout checksum verify"
 require_in_release 'uname -m' "architecture check"
 require_in_release 'refs/tags/' "tag ref push"
 require_in_release 'git rev-parse HEAD' "full SHA in release metadata"
