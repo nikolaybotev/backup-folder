@@ -90,3 +90,7 @@ if git diff --name-only "$parent" -- intent | grep -v '^intent/mac-setup-decisio
 ### Not in this phase
 
 The spec pull request. It contains only `intent/mac-setup-decisions/` and does not start the steps above.
+
+## Phase 0 build note
+
+Built 2026-10-31 on branch `cursor/mac-setup-phase0-ed7d` from `origin/main` at `994e1fbf4a5d83498ffafecf3a54740921f041fb`. Edited `docs/setup.md`, `docs/restore.md`, `tests/release-workflow.sh`, and `tests/setup-docs.sh` per spec FR2–FR7. No departure from spec; workflows, scripts, and other intent folders unchanged.

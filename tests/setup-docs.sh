@@ -59,6 +59,13 @@ setup_anchors=(
   'FileVault'
   'Screen Sharing'
   'Remote Login'
+  'Remote Login (SSH) is on'
+  'does not enable SSH'
+  'Low Power Mode'
+  'Prevent automatic sleeping when the display is off'
+  'Wake for network access'
+  'After power failure'
+  'does not apply those settings'
   'Choose a computer name'
   'raw.github.com/OWNER/bootstrap/main/install.sh'
   'jq'
@@ -71,6 +78,7 @@ setup_anchors=(
   'signingkey'
   'Grok Bot'
   'self-hosted'
+  'does not add a self-hosted runner'
   '1Password'
   'iStat Menus'
   'MacVim'
@@ -91,6 +99,9 @@ setup_anchors=(
   'config.toml'
   '.config/backup-folder/pins.txt'
   'pins.txt.example'
+  'Apple Developer ID notarization is out of scope'
+  'There is no plan to notarize'
+  'not operators of the machine'
 )
 
 restore_anchors=(
@@ -102,6 +113,12 @@ restore_anchors=(
   'file-access policy'
   '.config/backup-folder/pins.txt'
   'pins.txt.example'
+  'wireguard-go'
+  'does not install Xcode'
+  'GnuPG'
+  'Grok Bot'
+  '1Password CLI'
+  'not operators of the machine'
 )
 
 for a in "${setup_anchors[@]}"; do
@@ -110,6 +127,25 @@ done
 
 for a in "${restore_anchors[@]}"; do
   require_anchor "$RESTORE" "$a"
+done
+
+forbidden_patterns=(
+  'roger-bootstrap'
+  '(Q2)'
+  '(Q3)'
+  '(Q4)'
+  '(Q5)'
+  '(Q6)'
+  'stays open'
+  'left unfinished'
+  'notarization is decided'
+  'until you name them'
+)
+
+for pattern in "${forbidden_patterns[@]}"; do
+  if grep -Fq "$pattern" "$SETUP" "$RESTORE"; then
+    fail "forbidden string in setup or restore docs: $pattern"
+  fi
 done
 
 ok "all checks passed"
