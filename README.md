@@ -44,6 +44,8 @@ backup-folder --config /abs/config.toml
 
 The two-argument command snapshots one folder. `--config` reads a file of source and destination pairs and backs up each of them. One LaunchAgent, label `com.nikolaybotev.backup`, runs that command hourly at minute 0. The template is [`launchd/backup-folder.plist.template`](launchd/backup-folder.plist.template). Replace each `/ABS/PATH/TO/HOME` placeholder. The example config is [`backup-folder.example.toml`](backup-folder.example.toml). Copy the filled plist to `~/Library/LaunchAgents/` and load it with `launchctl bootstrap gui/$(id -u)`. Loading LaunchAgents on the Mac is manual; CI does not install them. Moving from one agent per folder is described in [`docs/backup-job.md`](docs/backup-job.md).
 
+After an in-place swap of `~/bin/backup-folder` while that agent stays loaded, launchd may refuse the next spawn. Run `launchctl kickstart gui/$(id -u)/com.nikolaybotev.backup` once and check that job's log for a clean run.
+
 ## macOS for a real build and test
 
 `clonefile` and `launchd` are macOS-only, so building a binary that can take snapshots and scheduling it needs a Mac.
@@ -62,5 +64,6 @@ Example config: [`drop-box-watcher.example.toml`](drop-box-watcher.example.toml)
 2. Copy the example config to `$HOME/.config/drop-box-watcher/config.toml`, replace every `/ABS/PATH/TO/HOME` placeholder with your absolute home path, set the real webhook URL and routine key, and run `chmod 0600` on that file. Keep this directory outside iCloud Desktop and Documents and outside `~/Backups`.
 3. Copy the filled plist to `$HOME/Library/LaunchAgents/com.nikolaybotev.drop-box-watcher.plist`, replacing the same absolute-path placeholders (including the binary, config, and log paths in `ProgramArguments`, `StandardOutPath`, and `StandardErrorPath`).
 4. Load the agent: `launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.nikolaybotev.drop-box-watcher.plist`.
+5. After an in-place swap of `~/bin/drop-box-watcher` while that agent stays loaded, run `launchctl kickstart -k gui/$(id -u)/com.nikolaybotev.drop-box-watcher` once and check that job's log for a clean run.
 
 The first run may prompt for Desktop folder access. A push to `main` runs job `publish` in `.github/workflows/release.yml`, which can push the next patch tag and publish a GitHub release; agents do not push a tag by hand. CI and agents do not copy the binary into `~/bin`, write the real config, or load this LaunchAgent.
