@@ -2,7 +2,7 @@
 
 One LaunchAgent, label `com.nikolaybotev.backup`, backs up every folder in its config. Adding a folder is a `[[folder]]` entry, not another agent.
 
-Keep the same destination directories. Each destination still has `backup.log`, the same snapshot names, and the same retention, so history already on disk still applies.
+Keep the same destination directories. Each destination still has `backup.log` and the same snapshot names, so history already on disk still applies. When the config omits `retention`, the tool uses the default policy (48 hours, then one snapshot per day for 60 days), and existing snapshots age out under that policy.
 
 Copy [`backup-folder.example.toml`](../backup-folder.example.toml) to `~/.config/backup-folder/config.toml`, set mode `0600`, and replace the placeholders. `pins.txt` in that directory is a different file.
 
