@@ -58,6 +58,7 @@ require_in_release 'MACOS_SIGNING_P12_BASE64' "MACOS_SIGNING_P12_BASE64 secret"
 require_in_release 'MACOS_SIGNING_P12_PASSWORD' "MACOS_SIGNING_P12_PASSWORD secret"
 require_in_release 'release: missing ' "missing-secret error prefix"
 require_in_release 'security find-identity -p codesigning "$KEYCHAIN"' "find-identity on the imported keychain"
+require_in_release 'SIGN_IDENTITY="$(security find-identity -p codesigning "$KEYCHAIN" | env -u SIGN_IDENTITY bash scripts/signing-identity.sh)"' "publish always derives the identity"
 require_in_release 'bash scripts/signing-identity.sh' "signing-identity helper"
 require_in_release 'release: missing signing identity' "missing signing identity fails the release"
 require_in_release 'bash scripts/build.sh' "single build.sh invocation"
@@ -190,6 +191,16 @@ fi
 
 if grep -q 'find-identity -v' "$RELEASE_YML"; then
   fail "release.yml must not pass -v to find-identity"
+fi
+
+identity_if_count="$(grep -cF 'if [[ -z "${SIGN_IDENTITY:-}" ]]' "$RELEASE_YML" || true)"
+if [[ "$identity_if_count" -ne 1 ]]; then
+  fail "release.yml must check an empty derived identity once (found $identity_if_count)"
+fi
+find_line="$(grep -n 'security find-identity -p codesigning' "$RELEASE_YML" | head -1 | cut -d: -f1)"
+empty_line="$(grep -nF 'if [[ -z "${SIGN_IDENTITY:-}" ]]' "$RELEASE_YML" | head -1 | cut -d: -f1)"
+if [[ -z "$find_line" || -z "$empty_line" || "$empty_line" -lt "$find_line" ]]; then
+  fail "release.yml must derive the identity before it checks for an empty one"
 fi
 
 bash "$ROOT/tests/signing-identity-test.sh"

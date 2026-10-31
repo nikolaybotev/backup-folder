@@ -27,12 +27,11 @@ run_identity() {
   fi
 }
 
-configured="configured-identity-$$"
-got="$(run_identity "$configured" '  1) AAAA "other-identity"')" || fail "configured SIGN_IDENTITY should succeed"
-[[ "$got" == "$configured" ]] || fail "expected configured value, got: $got"
-ok "SIGN_IDENTITY is the configured value"
-
 untrusted=$'Policy: Code Signing\n  Matching identities\n  1) ABCDEF0123 "fixture-identity" (CSSMERR_TP_NOT_TRUSTED)\n     1 identities found\n\n  Valid identities only\n     0 valid identities found\n'
+preset="preset-identity-$$"
+got="$(run_identity "$preset" "$untrusted")" || fail "a pre-set SIGN_IDENTITY must not replace the parsed identity"
+[[ "$got" == "fixture-identity" ]] || fail "expected fixture identity, got: $got"
+ok "a pre-set SIGN_IDENTITY is ignored"
 got="$(run_identity "" "$untrusted")" || fail "untrusted identity should succeed"
 [[ "$got" == "fixture-identity" ]] || fail "expected fixture identity, got: $got"
 ok "one matching identity is parsed"
@@ -73,5 +72,10 @@ if grep -n 'find-identity -v' "$SCRIPT" "$ROOT/.github/workflows/release.yml"; t
   fail "find-identity must not pass -v"
 fi
 ok "find-identity does not pass -v"
+
+if grep -n 'SIGN_IDENTITY' "$SCRIPT"; then
+  fail "signing-identity.sh must not read SIGN_IDENTITY"
+fi
+ok "helper does not read SIGN_IDENTITY"
 
 echo "signing-identity-test: all checks passed"

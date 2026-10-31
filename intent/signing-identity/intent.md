@@ -15,7 +15,7 @@ The release job names the person on the code-signing certificate. LaunchAgent la
 
 ## Proposed outcome
 
-The signing identity is configuration. Releases are still signed with the certificate from the existing signing secrets. LaunchAgent labels use the `com.nikolaybotev.` prefix. Prose says "this repo". Distribution entry points may name the canonical repository. Reviewers can check the three writing rules.
+The signing identity is configuration. Job `publish` always derives it from the single certificate imported from `MACOS_SIGNING_P12_BASE64` and `MACOS_SIGNING_P12_PASSWORD` and does not honor a pre-set `SIGN_IDENTITY`. `SIGN_IDENTITY` is only the local-build switch in `scripts/build.sh`. LaunchAgent labels use the `com.nikolaybotev.` prefix. Prose says "this repo". Distribution entry points may name the canonical repository. Reviewers can check the three writing rules.
 
 ## Affected users and systems
 
@@ -43,7 +43,7 @@ This pull request is the whole change: spec, plan, and the fix together, one pha
 
 Decisions, all closed:
 
-1. Signing identity. Remove every place that names who the code-signing certificate is issued to, including the release workflow, scripts/build.sh, tests/release-workflow.sh, README, AGENTS.md, docs/setup.md, and intents. The identity is configuration. Take it from the SIGN_IDENTITY environment variable when set, otherwise from the certificate imported from the existing signing secrets. Refer to it only as "the signing identity". Do not write the current subject name anywhere, including examples and tests. Releases must still be signed with that same identity. A missing identity still fails the release. An unset SIGN_IDENTITY on a local build stays ad-hoc, as it is now. Tests check that behavior against the configured value, not against a literal subject name.
+1. Signing identity. Remove every place that names who the code-signing certificate is issued to, including the release workflow, scripts/build.sh, tests/release-workflow.sh, README, AGENTS.md, docs/setup.md, and intents. The identity is configuration. Job publish always derives it from the single certificate imported from MACOS_SIGNING_P12_BASE64 and MACOS_SIGNING_P12_PASSWORD and does not honor a pre-set SIGN_IDENTITY. Refer to it only as "the signing identity". Do not write the current subject name anywhere, including examples and tests. Releases must still be signed with that same identity. A missing identity still fails the release. SIGN_IDENTITY remains only scripts/build.sh's local-build switch: set means sign with that login-keychain identity, unset means ad-hoc. Tests check that behavior against the configured value, not against a literal subject name.
 
 2. LaunchAgent labels. Rename the prefix `com.nikolay.` to `com.nikolaybotev.` for backup.NAME and drop-box-watcher, in the plist templates, tests, and docs. This publisher name is fine in public. Find the open decision in intent/generic-docs/plan.md and close it accordingly. Do not rename unrelated historical intent folders.
 
@@ -79,7 +79,7 @@ Still one pull request. Do not merge. Do not install anything or touch a machine
 ## Cloud install boundary (verbatim)
 
 ```
-Boundary from Nikolay. Match the pull request and REVIEW.md item to this.
+Boundary. Match the pull request and REVIEW.md item to this.
 
 `.cursor/install.sh` is only for setting up Cursor Cloud Agent environments, never GitHub Actions or anything else. Leave it hardcoding nikolaybotev/local-skills with no override and no env var.
 
@@ -88,4 +88,16 @@ Any fork override belongs only on backup-folder's own distribution entry points 
 Prose about the repo still says "this repo". Do not derive a repo identity from GITHUB_REPOSITORY in code that other repos' CI may run. Inside this repo's own workflows, `${{ github.repository }}` is fine. Do not make install instructions depend on an env var the reader must set.
 
 Still one pull request. Do not merge. Do not install anything or touch a machine.
+```
+
+## Release identity (verbatim)
+
+```
+In the release publish job, do not honor a pre-set SIGN_IDENTITY. The job always derives the identity from the single certificate imported from MACOS_SIGNING_P12_BASE64 and MACOS_SIGNING_P12_PASSWORD. Zero identities or more than one still fail before scripts/build.sh. Keep security find-identity -p codesigning on the temporary keychain, no -v, and count quoted names only from the matching-identities section. Export the derived identity for scripts/build.sh.
+
+SIGN_IDENTITY remains only scripts/build.sh's local-build switch: set means sign with that login-keychain identity, unset means ad-hoc.
+
+Releases always use the imported certificate. "The signing identity" stays the generic prose name and is not a literal certificate subject.
+
+Leave .cursor/install.sh hardcoding nikolaybotev/local-skills with no override and no env var. It is only for Cursor Cloud Agent environment setup.
 ```

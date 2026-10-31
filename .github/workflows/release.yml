@@ -125,9 +125,7 @@ jobs:
           security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASS" "$KEYCHAIN"
           security list-keychains -d user -s "$KEYCHAIN" $(security list-keychains -d user | tr -d '"')
 
-          if [[ -z "${SIGN_IDENTITY:-}" ]]; then
-            SIGN_IDENTITY="$(security find-identity -p codesigning "$KEYCHAIN" | bash scripts/signing-identity.sh)"
-          fi
+          SIGN_IDENTITY="$(security find-identity -p codesigning "$KEYCHAIN" | env -u SIGN_IDENTITY bash scripts/signing-identity.sh)"
           if [[ -z "${SIGN_IDENTITY:-}" ]]; then
             echo "release: missing signing identity" >&2
             exit 1

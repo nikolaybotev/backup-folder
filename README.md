@@ -24,7 +24,7 @@ On macOS, build both `backup-folder` and `drop-box-watcher` with:
 bash scripts/build.sh
 ```
 
-When `SIGN_IDENTITY` is set, the script signs with that identity. When `SIGN_IDENTITY` is unset, it ad-hoc signs each binary. CI exports `VERSION=v0.0.0` for the `macos` job and the CodeQL manual build. For a local build, omit `VERSION` so the stamp uses `git describe --tags --dirty`; the script exits non-zero when it cannot determine a version and does not invent `0.0.0`. Stamped `--version` output includes the short git SHA; `--version --verbose` includes the full SHA from `git rev-parse HEAD` and the UTC build time from `date -u +%Y-%m-%dT%H:%MZ`.
+`SIGN_IDENTITY` is only the local-build switch. When it is set, the script signs with that login-keychain identity. When it is unset, the script ad-hoc signs each binary. Job `publish` does not honor a pre-set `SIGN_IDENTITY`. It always signs with the single identity on the certificate imported from `MACOS_SIGNING_P12_BASE64` and `MACOS_SIGNING_P12_PASSWORD`. CI exports `VERSION=v0.0.0` for the `macos` job and the CodeQL manual build. For a local build, omit `VERSION` so the stamp uses `git describe --tags --dirty`; the script exits non-zero when it cannot determine a version and does not invent `0.0.0`. Stamped `--version` output includes the short git SHA; `--version --verbose` includes the full SHA from `git rev-parse HEAD` and the UTC build time from `date -u +%Y-%m-%dT%H:%MZ`.
 
 ## Retention
 
