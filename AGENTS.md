@@ -29,6 +29,14 @@ Small macOS CLI that snapshots a folder with APFS copy-on-write clones (`backup-
 - Do not install the binary into `~/Backups` or `~/Backups/bin/backup-folder` from CI or agent work unless an intent explicitly says so.
 - Do not copy `drop-box-watcher` into `~/bin`, write the real watcher config, or load `com.nikolay.drop-box-watcher` from CI or agent work. Follow [`README.md`](README.md) on your Mac when a release pin exists in `~/.config/backup-folder/pins.txt`.
 
+## Personal data
+
+Personal data does not go in the repo: street names and addresses, parcel numbers, loan and account figures, employer details, family and contact details, and IPs, keys, or hostnames tied to Nikolay's home. Check intents, specs, plans, examples, tests, docs, commit messages, and pull request text, including values that came from him. A real value that must stay goes only in an untracked local file or a secret. Do not rewrite history to remove personal data without his approval.
+
+- Names of people, lenders, banks, and other institutions tied to his own dealings are personal data and get neutral placeholders such as "Lender A" or "Bank B". Made-up example names stay. Names of other people still get placeholders.
+- His managed public identity (his name, his picture, his GitHub account and his name in open-source license files) is not sensitive personal data that needs to be kept private, and stays.
+- For mortgage and home-purchase work, dollar amounts, rates, percentages, fees, down-payment scenarios, house prices, closing-cost worksheets, and lender offers are not private and stay as they are.
+
 ## Architecture
 
 - `Sources/backup-folder/main.swift` is the CLI entry point; `Retention.swift`, `PathCheck.swift`, and `WalkPolicy.swift` in the same directory hold retention rules, path containment, and directory cycle detection during the clone walk. `Package.swift` and `scripts/build.sh` produce both `backup-folder` and `drop-box-watcher`.
