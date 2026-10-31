@@ -75,6 +75,8 @@ jobs:
         run: bash tests/release-version-test.sh
       - name: Install tools script test
         run: bash tests/install-tools-test.sh
+      - name: Install tools end-to-end test
+        run: bash tests/install-tools-e2e.sh
       - name: Ensure backup dirs script test
         run: bash tests/ensure-backup-dirs-test.sh
       - name: Setup and restore docs check

@@ -34,20 +34,6 @@ if grep -qE '(^|[^a-z])op([^a-z]|$)' <<<"$text"; then
   fail "install script must not contain op"
 fi
 
-# Source refusal function
-# shellcheck source=/dev/null
-source "$INSTALL_SCRIPT"
-
-if install_refuse 0 "${HOME}/bin"; then
-  fail "expected refusal for uid 0"
-fi
-ok "refuses uid 0"
-
-if install_refuse 501 "/Users/test/Backups/mirror"; then
-  fail "expected refusal for Backups path component"
-fi
-ok "refuses Backups path component"
-
 # AC3: missing default pin file (PINS_FILE unset)
 MISS_HOME="$(mktemp -d "${TMPDIR:-/tmp}/install-test-miss-home.XXXXXX")"
 cleanup_miss() {
@@ -135,47 +121,10 @@ if PINS_FILE="$PINS" bash "$INSTALL_SCRIPT"; then
 fi
 ok "invalid tool name refused"
 
-# Stub gh: write output file and exit 0. Record arguments when GH_ARGS_LOG is set.
-cat >"$TMP_HOME/bin-stub/gh" <<'STUB'
-#!/usr/bin/env bash
-set -euo pipefail
-if [[ -n "${GH_ARGS_LOG:-}" ]]; then
-  printf '%s\n' "$*" >> "$GH_ARGS_LOG"
-fi
-if [[ "${1:-}" == "attestation" && "${2:-}" == "verify" ]]; then
-  exit 0
-fi
-if [[ "${1:-}" == "release" && "${2:-}" == "download" ]]; then
-  clobber=0
-  outfile=""
-  shift 2
-  while [[ $# -gt 0 ]]; do
-    case "$1" in
-      --clobber)
-        clobber=1
-        shift
-        ;;
-      --output)
-        outfile="$2"
-        shift 2
-        ;;
-      *)
-        shift
-        ;;
-    esac
-  done
-  if [[ -n "$outfile" ]]; then
-    if [[ -e "$outfile" && "$clobber" -eq 0 ]]; then
-      echo "already exists (use \`--clobber\` to overwrite file or \`--skip-existing\` to skip file)" >&2
-      exit 1
-    fi
-    printf 'stub-binary' >"$outfile"
-  fi
-  exit 0
-fi
-exit 0
-STUB
-chmod +x "$TMP_HOME/bin-stub/gh"
+# Stub gh: faithful release download (existing --output without --clobber fails).
+# shellcheck source=tests/install-tools-gh-stub.sh
+source "$ROOT/tests/install-tools-gh-stub.sh"
+install_tools_write_gh_stub "$TMP_HOME/bin-stub"
 
 default_repo="$(sed -n 's/^GH_REPO="${GH_REPO:-\([^}]*\)}"$/\1/p' "$INSTALL_SCRIPT")"
 [[ -n "$default_repo" ]] || fail "installer has no default repository"
