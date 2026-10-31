@@ -146,7 +146,8 @@ jobs:
           file ./backup-folder | grep -q 'arm64'
           file "$watcher_bin" | grep -q 'arm64'
 
-          shasum -a 256 ./backup-folder "$watcher_bin" > SHA256SUMS
+          bash scripts/release-sha256sums.sh write ./backup-folder "$watcher_bin" SHA256SUMS
+          bash scripts/release-sha256sums.sh verify-artifacts ./backup-folder "$watcher_bin" SHA256SUMS
 
           full_sha="$(git rev-parse HEAD)"
           build_ts="$("./backup-folder" --version --verbose | sed -n 's/.*built \([^)]*\).*/\1/p')"
