@@ -132,6 +132,7 @@ jobs:
           eval "$(mise activate bash)"
           swiftc -parse-as-library -o folder-job-tests \
             Sources/ToolConfig/TomlSubset.swift \
+            Sources/backup-folder/Retention.swift \
             Sources/backup-folder/PathCheck.swift \
             Sources/backup-folder/BackupConfig.swift \
             Sources/backup-folder/FolderJob.swift \

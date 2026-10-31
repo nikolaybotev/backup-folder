@@ -1,6 +1,6 @@
 import Foundation
 
-struct RetentionTier {
+struct RetentionTier: Equatable {
     let intervalSeconds: Int
     let ageSeconds: Int
 }

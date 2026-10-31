@@ -111,7 +111,10 @@ The `macos` job runs `bash tests/macos-smoke.sh`. Do not claim that smoke passed
 
 ### Build notes (Phase 1)
 
-Added only after the phase lands.
+- `BackupConfig` parses optional root and per-folder `retention` arrays, validates per spec requirement 7, and resolves tiers onto each `FolderPair` (folder override, then root, then `defaultTiers`). Invalid root retention fails even when every folder overrides.
+- Added `decideBackupConfigReload`; `runConfigJob` uses it with `current: nil` (startup keep-and-log omits the reload prefix). `runOneFolder` passes resolved tiers and `TimeZone.current` into `namesToPrune`; the two-argument command uses `defaultTiers`.
+- Bare `1m` immediately after a `60s` keep-all tier resolves as interval 60 seconds and age 120 seconds (shorthand for equal-interval acceptance in AC2).
+- Extended `tests/folder-job-tests.swift` for AC2 and `tests/macos-smoke.sh` for default, inherited, and 15-minute bucket retention (AC3). Linux CI folder-job compile includes `Retention.swift`.
 
 ## Phase 2 — Docs
 

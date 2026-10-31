@@ -2,7 +2,7 @@
 // Two-argument form: backup-folder <source-dir> <backup-dir>
 // Job form: backup-folder --config <config.toml>
 // Does everything in-process (no shell), so a Full Disk Access grant applies to this binary only.
-// Retention: every snapshot for 48h, then the first snapshot of each day up to 60 days.
+// Retention: default tiers (48h keep-all, then daily to 60d) or each folder's configured list.
 import Foundation
 import Darwin
 import BuildStamp
@@ -50,13 +50,15 @@ private func runConfigJob(_ path: String) async -> Int32 {
         writeStderrLine("config io error\n")
         return 2
     }
-    switch parseBackupConfig(text) {
-    case .failure(let error):
-        writeStderrLine("config parse error: \(error.message)\n")
+    switch decideBackupConfigReload(current: nil, read: parseBackupConfig(text)) {
+    case .keepAndLog(let line):
+        writeStderrLine("\(line)\n")
         return 2
-    case .success(let config):
+    case .unchanged:
+        return 2
+    case .apply(let config):
         return await FolderJob.run(pairs: config.folders, concurrency: config.concurrency) { pair in
-            runOneFolder(source: pair.source, dest: pair.dest)
+            runOneFolder(source: pair.source, dest: pair.dest, retentionTiers: pair.retentionTiers)
         }
     }
 }
@@ -68,10 +70,10 @@ private func runCommandLineFolder(rawSource: String, rawDest: String) -> Int32 {
     }
     let source = rawSource.hasSuffix("/") ? String(rawSource.dropLast()) : rawSource
     let dest = rawDest.hasSuffix("/") ? String(rawDest.dropLast()) : rawDest
-    return runOneFolder(source: source, dest: dest)
+    return runOneFolder(source: source, dest: dest, retentionTiers: SnapshotRetention.defaultTiers)
 }
 
-private func runOneFolder(source src: String, dest: String) -> Int32 {
+private func runOneFolder(source src: String, dest: String, retentionTiers: [RetentionTier]) -> Int32 {
     if PathContainment.refuses(source: src, dest: dest) {
         writeStderrLine("backup dir must not be inside source\n")
         return 2
@@ -281,7 +283,13 @@ private func runOneFolder(source src: String, dest: String) -> Int32 {
 
     let dirNames = (try? fm.contentsOfDirectory(atPath: dest)) ?? []
     let names = SnapshotRetention.sortedCandidateNames(dirNames, parseInstant: parseSnapshotInstant)
-    let toPrune = SnapshotRetention.namesToPrune(sortedCandidateNames: names, now: now, parseInstant: parseSnapshotInstant)
+    let toPrune = SnapshotRetention.namesToPrune(
+        sortedCandidateNames: names,
+        now: now,
+        parseInstant: parseSnapshotInstant,
+        tiers: retentionTiers,
+        timeZone: TimeZone.current
+    )
     for name in toPrune {
         do {
             try fm.removeItem(atPath: dest + "/" + name)

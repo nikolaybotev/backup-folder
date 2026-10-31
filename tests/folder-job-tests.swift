@@ -69,6 +69,7 @@ private final class Counter: @unchecked Sendable {
 struct FolderJobTests {
     static func main() async {
         testSchema()
+        testRetention()
         testExampleFile()
         testProductSourcesDoNotSleep()
         await testNoCapOverlap()
@@ -232,6 +233,194 @@ struct FolderJobTests {
         }
 
         testSymlinkDestinations()
+    }
+
+    static func testRetention() {
+        let worked = """
+        retention = ["4h", "15m/8h", "30m/16h", "1h/24h", "1d/30d"]
+        [[folder]]
+        source = "/ABS/SOURCE"
+        dest = "/ABS/BACKUP"
+        """
+        switch parseBackupConfig(worked) {
+        case .failure(let error):
+            fail("worked example \(error.message)")
+        case .success(let config):
+            assert(config.folders.count == 1, "worked one folder")
+            let tiers = config.folders[0].retentionTiers
+            assert(tiers.count == 5, "worked tier count")
+            assert(tiers[0].intervalSeconds == 0 && tiers[0].ageSeconds == 4 * 3600, "worked keep-all 4h")
+            assert(tiers[1].intervalSeconds == 15 * 60 && tiers[1].ageSeconds == 8 * 3600, "worked 15m/8h")
+            assert(tiers[4].intervalSeconds == 86400 && tiers[4].ageSeconds == 30 * 86400, "worked 1d/30d")
+        }
+
+        let explicitDefault = """
+        [[folder]]
+        source = "/ABS/SOURCE"
+        dest = "/ABS/BACKUP"
+        retention = ["48h", "1d/60d"]
+        """
+        switch parseBackupConfig(explicitDefault) {
+        case .failure(let error):
+            fail("explicit default \(error.message)")
+        case .success(let config):
+            assert(config.folders[0].retentionTiers == SnapshotRetention.defaultTiers, "48h 1d/60d matches defaultTiers")
+        }
+
+        let equalIntervals = """
+        [[folder]]
+        source = "/ABS/SOURCE"
+        dest = "/ABS/BACKUP"
+        retention = ["60s", "1m"]
+        """
+        switch parseBackupConfig(equalIntervals) {
+        case .failure(let error):
+            fail("60s 1m \(error.message)")
+        case .success(let config):
+            let tiers = config.folders[0].retentionTiers
+            assert(tiers.count == 2, "two tiers")
+            assert(tiers[0].intervalSeconds == 0 && tiers[0].ageSeconds == 60, "60s keep-all tier")
+            assert(tiers[1].intervalSeconds == 60 && tiers[1].ageSeconds == 120, "1m interval tier")
+        }
+
+        let inheritRoot = """
+        retention = ["4h"]
+        [[folder]]
+        source = "/ABS/SOURCE"
+        dest = "/ABS/BACKUP"
+        """
+        switch parseBackupConfig(inheritRoot) {
+        case .failure(let error):
+            fail("inherit root \(error.message)")
+        case .success(let config):
+            assert(config.folders[0].retentionTiers.count == 1, "inherited one tier")
+            assert(config.folders[0].retentionTiers[0].ageSeconds == 4 * 3600, "inherited 4h")
+        }
+
+        let overrideFolder = """
+        retention = ["4h"]
+        [[folder]]
+        source = "/ABS/SOURCE"
+        dest = "/ABS/BACKUP"
+        retention = ["48h", "1d/60d"]
+        """
+        switch parseBackupConfig(overrideFolder) {
+        case .failure(let error):
+            fail("override folder \(error.message)")
+        case .success(let config):
+            assert(config.folders[0].retentionTiers == SnapshotRetention.defaultTiers, "folder override default tiers")
+        }
+
+        assertRetentionFailure(
+            """
+            [[folder]]
+            source = "/ABS/SOURCE"
+            dest = "/ABS/BACKUP"
+            retention = []
+            """,
+            contains: "empty retention"
+        )
+
+        assertRetentionFailure(
+            """
+            [[folder]]
+            source = "/ABS/SOURCE"
+            dest = "/ABS/BACKUP"
+            retention = ["1w"]
+            """,
+            contains: "bad retention tier"
+        )
+
+        assertRetentionFailure(
+            """
+            [[folder]]
+            source = "/ABS/SOURCE"
+            dest = "/ABS/BACKUP"
+            retention = ["48h", "2d"]
+            """,
+            contains: "retention ages must increase"
+        )
+
+        assertRetentionFailure(
+            """
+            [[folder]]
+            source = "/ABS/SOURCE"
+            dest = "/ABS/BACKUP"
+            retention = ["1h/8h", "15m/16h"]
+            """,
+            contains: "retention interval larger than the next tier"
+        )
+
+        assertRetentionFailure(
+            """
+            retention = ["1w"]
+            [[folder]]
+            source = "/ABS/SOURCE"
+            dest = "/ABS/BACKUP"
+            retention = ["48h", "1d/60d"]
+            """,
+            contains: "bad retention tier"
+        )
+
+        assertRetentionFailure(
+            """
+            [[folder]]
+            source = "/ABS/SOURCE"
+            dest = "/ABS/BACKUP"
+            retention = 4
+            """,
+            contains: "expected an array of strings for retention"
+        )
+
+        let goodConfig = """
+        [[folder]]
+        source = "/ABS/SOURCE"
+        dest = "/ABS/BACKUP"
+        """
+        guard case .success(let current) = parseBackupConfig(goodConfig) else {
+            fail("good config for reload")
+        }
+        let badReload = """
+        [[folder]]
+        source = "/ABS/SOURCE"
+        dest = "/ABS/BACKUP"
+        retention = ["48h", "2d"]
+        """
+        let decision = decideBackupConfigReload(current: current, read: parseBackupConfig(badReload))
+        switch decision {
+        case .keepAndLog(let line):
+            assert(
+                line.hasPrefix("config reload rejected: config parse error: "),
+                "reload reject prefix got \(line)"
+            )
+            assert(line.contains("retention ages must increase"), "reload reject reason")
+        default:
+            fail("bad reload should keep-and-log")
+        }
+        guard case .success(let same) = parseBackupConfig(goodConfig) else {
+            fail("re-read good")
+        }
+        let sameDecision = decideBackupConfigReload(current: current, read: .success(same))
+        switch sameDecision {
+        case .unchanged:
+            assert(sameDecision.logLine == nil, "unchanged has no log")
+        default:
+            fail("equal re-read should be unchanged")
+        }
+    }
+
+    static func assertRetentionFailure(_ text: String, contains fragment: String) {
+        switch parseBackupConfig(text) {
+        case .success:
+            fail("expected failure for \(fragment)")
+        case .failure(let error):
+            assert(error.message.contains("line "), "retention error names line")
+            assert(error.message.contains("retention"), "retention error names key class")
+            assert(error.message.contains(fragment), "expected \(fragment) in \(error.message)")
+            assert(!error.message.contains("/ABS"), "retention error echoes path")
+            assert(!error.message.contains("1w"), "retention error echoes bad token")
+            assert(!error.message.contains("2d"), "retention error echoes bad token")
+        }
     }
 
     static func testSymlinkDestinations() {

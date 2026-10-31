@@ -3,6 +3,7 @@ import Foundation
 struct FolderPair: Sendable, Equatable {
     var source: String
     var dest: String
+    var retentionTiers: [RetentionTier] = SnapshotRetention.defaultTiers
 }
 
 enum FolderJob {
