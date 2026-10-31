@@ -57,7 +57,10 @@ require_in_release 'pull-requests: read' "pull-requests read permission"
 require_in_release 'MACOS_SIGNING_P12_BASE64' "MACOS_SIGNING_P12_BASE64 secret"
 require_in_release 'MACOS_SIGNING_P12_PASSWORD' "MACOS_SIGNING_P12_PASSWORD secret"
 require_in_release 'release: missing ' "missing-secret error prefix"
-require_in_release 'Nikolay Botev Code Signing' "SIGN_IDENTITY"
+require_in_release 'security find-identity -p codesigning "$KEYCHAIN"' "find-identity on the imported keychain"
+require_in_release 'SIGN_IDENTITY="$(security find-identity -p codesigning "$KEYCHAIN" | env -u SIGN_IDENTITY bash scripts/signing-identity.sh)"' "publish always derives the identity"
+require_in_release 'bash scripts/signing-identity.sh' "signing-identity helper"
+require_in_release 'release: missing signing identity' "missing signing identity fails the release"
 require_in_release 'bash scripts/build.sh' "single build.sh invocation"
 require_in_release 'codesign --verify --strict' "codesign verify strict"
 require_in_release 'SHA256SUMS' "checksum file"
@@ -70,7 +73,8 @@ require_in_release 'attestations: write' "attestations write permission"
 require_in_release 'id-token: write' "id-token write permission"
 require_in_release 'contents: write' "contents write permission"
 require_in_release 'macos-latest' "macos-latest runner"
-require_in_release "--signer-workflow nikolaybotev/backup-folder/.github/workflows/release.yml" "signer-workflow flag"
+require_in_release '--repo "${{ github.repository }}"' "attestation repo from github.repository"
+require_in_release '--signer-workflow "${{ github.repository }}/.github/workflows/release.yml"' "signer-workflow from github.repository"
 require_in_release "--deny-self-hosted-runners" "deny-self-hosted-runners flag"
 require_in_release 'gh attestation verify' "gh attestation verify"
 require_in_release 'scripts/release-version.sh' "release-version.sh"
@@ -145,6 +149,8 @@ if [[ "$release_text" == *'SIGN_IDENTITY'* ]]; then
   fi
 fi
 
+require_in_build 'codesign --sign "$SIGN_IDENTITY"' "sign with SIGN_IDENTITY"
+require_in_build 'codesign --sign - --force' "ad-hoc sign when SIGN_IDENTITY is unset"
 require_in_build 'swift build -c release' "swift build -c release"
 require_in_build 'git rev-parse HEAD' "git rev-parse HEAD"
 require_in_build 'git describe --tags --dirty' "git describe fallback"
@@ -174,5 +180,29 @@ for wf in "$workflow_dir"/*; do
     fail "$base contains Backups"
   fi
 done
+
+if grep -nE 'SIGN_IDENTITY="[^$][^"]*"' "$RELEASE_YML" "$BUILD_SH"; then
+  fail "SIGN_IDENTITY must not be assigned a quoted literal"
+fi
+
+if grep -q 'GITHUB_REPOSITORY' "$RELEASE_YML"; then
+  fail "release.yml must not read GITHUB_REPOSITORY"
+fi
+
+if grep -q 'find-identity -v' "$RELEASE_YML"; then
+  fail "release.yml must not pass -v to find-identity"
+fi
+
+identity_if_count="$(grep -cF 'if [[ -z "${SIGN_IDENTITY:-}" ]]' "$RELEASE_YML" || true)"
+if [[ "$identity_if_count" -ne 1 ]]; then
+  fail "release.yml must check an empty derived identity once (found $identity_if_count)"
+fi
+find_line="$(grep -n 'security find-identity -p codesigning' "$RELEASE_YML" | head -1 | cut -d: -f1)"
+empty_line="$(grep -nF 'if [[ -z "${SIGN_IDENTITY:-}" ]]' "$RELEASE_YML" | head -1 | cut -d: -f1)"
+if [[ -z "$find_line" || -z "$empty_line" || "$empty_line" -lt "$find_line" ]]; then
+  fail "release.yml must derive the identity before it checks for an empty one"
+fi
+
+bash "$ROOT/tests/signing-identity-test.sh"
 
 ok "all checks passed"

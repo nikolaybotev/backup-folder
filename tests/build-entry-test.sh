@@ -57,6 +57,14 @@ grep -q 'timeout-minutes: 30' "$CODEQL_YML" || fail "codeql.yml missing timeout-
 
 grep -q 'scripts/build.sh' README.md || fail "README.md must mention scripts/build.sh"
 
+CLOUD_INSTALL="$ROOT/.cursor/install.sh"
+[[ -f "$CLOUD_INSTALL" ]] || fail "missing .cursor/install.sh"
+grep -q 'https://raw.githubusercontent.com/nikolaybotev/local-skills/main/install.sh' "$CLOUD_INSTALL" \
+  || fail "cloud install must hardcode nikolaybotev/local-skills"
+if grep -qE 'GITHUB_REPOSITORY|GH_REPO' "$CLOUD_INSTALL"; then
+  fail "cloud install must not take a repository override"
+fi
+
 [[ -f tests/build-backup-folder.sh ]] && fail "tests/build-backup-folder.sh must be deleted"
 
 if grep -E 'swiftc.*drop-box-watcher|swiftc.*backup-folder|swiftc.*Sources/backup-folder/main' tests/macos-smoke.sh tests/macos-watcher.sh 2>/dev/null; then

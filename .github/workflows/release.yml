@@ -125,7 +125,12 @@ jobs:
           security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASS" "$KEYCHAIN"
           security list-keychains -d user -s "$KEYCHAIN" $(security list-keychains -d user | tr -d '"')
 
-          export SIGN_IDENTITY="Nikolay Botev Code Signing"
+          SIGN_IDENTITY="$(security find-identity -p codesigning "$KEYCHAIN" | env -u SIGN_IDENTITY bash scripts/signing-identity.sh)"
+          if [[ -z "${SIGN_IDENTITY:-}" ]]; then
+            echo "release: missing signing identity" >&2
+            exit 1
+          fi
+          export SIGN_IDENTITY
           export VERSION="$tag"
           bash scripts/build.sh
 
@@ -181,8 +186,8 @@ jobs:
 
           for attempt in 1 2 3 4 5; do
             if gh attestation verify backup-folder \
-              --repo nikolaybotev/backup-folder \
-              --signer-workflow nikolaybotev/backup-folder/.github/workflows/release.yml \
+              --repo "${{ github.repository }}" \
+              --signer-workflow "${{ github.repository }}/.github/workflows/release.yml" \
               --deny-self-hosted-runners; then
               break
             fi
@@ -195,8 +200,8 @@ jobs:
 
           for attempt in 1 2 3 4 5; do
             if gh attestation verify "$watcher_bin" \
-              --repo nikolaybotev/backup-folder \
-              --signer-workflow nikolaybotev/backup-folder/.github/workflows/release.yml \
+              --repo "${{ github.repository }}" \
+              --signer-workflow "${{ github.repository }}/.github/workflows/release.yml" \
               --deny-self-hosted-runners; then
               break
             fi

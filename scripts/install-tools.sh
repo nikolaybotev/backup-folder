@@ -37,8 +37,8 @@ valid_pin_tag() {
 verify_binary() {
   local file="$1"
   gh attestation verify "$file" \
-    --repo nikolaybotev/backup-folder \
-    --signer-workflow nikolaybotev/backup-folder/.github/workflows/release.yml \
+    --repo "$GH_REPO" \
+    --signer-workflow "${GH_REPO}/.github/workflows/release.yml" \
     --deny-self-hosted-runners
 }
 

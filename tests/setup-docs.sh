@@ -93,7 +93,7 @@ setup_anchors=(
   'code-signing'
   'ensure-backup-dirs.sh'
   'home-mirrored'
-  'com.nikolay.backup.NAME'
+  'com.nikolaybotev.backup.NAME'
   'drop-box-watcher.plist.template'
   'Drop Box'
   'config.toml'

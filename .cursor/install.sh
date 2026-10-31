@@ -22,4 +22,4 @@ mise reshim
 swiftc --version
 
 # Cloud Agent Skills menu and runtime read ~/.cursor/skills-cursor. Existing skill folders are left in place.
-curl -fsSL https://raw.githubusercontent.com/OWNER/local-skills/main/install.sh | sh -s -- ~/.cursor/skills-cursor
+curl -fsSL https://raw.githubusercontent.com/nikolaybotev/local-skills/main/install.sh | sh -s -- ~/.cursor/skills-cursor

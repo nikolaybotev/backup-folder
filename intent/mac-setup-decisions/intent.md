@@ -20,7 +20,7 @@ The live docs state those decisions as instructions for any Mac. The release ver
 ## Affected users and systems
 
 - **Users:** a person following the setup and restore docs on a Mac. CI and agents, who must not apply those settings or install anything.
-- **Systems:** the public repo `nikolaybotev/backup-folder`. `docs/setup.md`, `docs/restore.md`, and `tests/release-workflow.sh`. Not the historical `intent/` folders.
+- **Systems:** this repo. `docs/setup.md`, `docs/restore.md`, and `tests/release-workflow.sh`. Not the historical `intent/` folders.
 
 ## Constraints and principles
 

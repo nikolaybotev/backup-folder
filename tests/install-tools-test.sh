@@ -17,9 +17,12 @@ ok() {
 
 # Static checks on install script source
 text="$(<"$INSTALL_SCRIPT")"
-[[ "$text" == *"--repo nikolaybotev/backup-folder"* ]] || fail "missing --repo flag"
-[[ "$text" == *"--signer-workflow nikolaybotev/backup-folder/.github/workflows/release.yml"* ]] \
-  || fail "missing --signer-workflow flag"
+[[ "$text" == *'--repo "$GH_REPO"'* ]] || fail "download or verify must pass --repo from GH_REPO"
+[[ "$text" == *'--signer-workflow "${GH_REPO}/.github/workflows/release.yml"'* ]] \
+  || fail "signer-workflow must use GH_REPO"
+if grep -q 'GITHUB_REPOSITORY' "$INSTALL_SCRIPT"; then
+  fail "install script must not read GITHUB_REPOSITORY"
+fi
 [[ "$text" == *"--deny-self-hosted-runners"* ]] || fail "missing --deny-self-hosted-runners"
 case "$text" in
   *launchctl*) fail "install script must not contain launchctl" ;;
@@ -130,10 +133,13 @@ if PINS_FILE="$PINS" bash "$INSTALL_SCRIPT"; then
 fi
 ok "invalid tool name refused"
 
-# Stub gh: write output file and exit 0
+# Stub gh: write output file and exit 0. Record arguments when GH_ARGS_LOG is set.
 cat >"$TMP_HOME/bin-stub/gh" <<'STUB'
 #!/usr/bin/env bash
 set -euo pipefail
+if [[ -n "${GH_ARGS_LOG:-}" ]]; then
+  printf '%s\n' "$*" >> "$GH_ARGS_LOG"
+fi
 if [[ "${1:-}" == "attestation" && "${2:-}" == "verify" ]]; then
   exit 0
 fi
@@ -152,14 +158,38 @@ exit 0
 STUB
 chmod +x "$TMP_HOME/bin-stub/gh"
 
+default_repo="$(sed -n 's/^GH_REPO="${GH_REPO:-\([^}]*\)}"$/\1/p' "$INSTALL_SCRIPT")"
+[[ -n "$default_repo" ]] || fail "installer has no default repository"
+
 cat >"$PINS" <<'EOF'
 backup-folder v1.0.0
 EOF
-PINS_FILE="$PINS" bash "$INSTALL_SCRIPT" || fail "pinned install with stub gh failed"
+GH_ARGS_LOG="$TMP_HOME/gh-args.log"
+export GH_ARGS_LOG
+: >"$GH_ARGS_LOG"
+env -u GH_REPO PINS_FILE="$PINS" bash "$INSTALL_SCRIPT" || fail "pinned install with stub gh failed"
 dest="$TMP_HOME/bin/backup-folder"
 [[ -f "$dest" ]] || fail "expected installed binary"
 mode="$(stat -c '%a' "$dest" 2>/dev/null || stat -f '%OLp' "$dest")"
 [[ "$mode" == "755" ]] || fail "expected mode 755, got $mode"
+grep -F -- "--repo ${default_repo}" "$GH_ARGS_LOG" >/dev/null || fail "unset GH_REPO did not use the installer default"
+grep -F -- "--signer-workflow ${default_repo}/.github/workflows/release.yml" "$GH_ARGS_LOG" >/dev/null \
+  || fail "unset GH_REPO did not verify with the installer default"
 ok "stub gh install leaves mode 755"
+ok "unset GH_REPO uses the installer default"
+
+: >"$GH_ARGS_LOG"
+GH_REPO="fixture-owner/fixture-repo" PINS_FILE="$PINS" bash "$INSTALL_SCRIPT" \
+  || fail "pinned install with GH_REPO override failed"
+grep -F -- "--repo fixture-owner/fixture-repo" "$GH_ARGS_LOG" >/dev/null \
+  || fail "GH_REPO override was not passed to gh"
+grep -F -- "--signer-workflow fixture-owner/fixture-repo/.github/workflows/release.yml" "$GH_ARGS_LOG" >/dev/null \
+  || fail "GH_REPO override was not used for signer-workflow"
+if [[ "$default_repo" != "fixture-owner/fixture-repo" ]]; then
+  if grep -F -- "--repo ${default_repo}" "$GH_ARGS_LOG" >/dev/null; then
+    fail "GH_REPO override still passed the installer default"
+  fi
+fi
+ok "GH_REPO override is the configured repository"
 
 echo "install-tools-test: all checks passed"
