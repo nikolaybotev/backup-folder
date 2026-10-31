@@ -35,7 +35,7 @@ def load_plist(path: pathlib.Path) -> dict:
         return plistlib.load(f)
 
 b = load_plist(backup)
-if b.get("Label") != "com.nikolay.backup.NAME":
+if b.get("Label") != "com.nikolaybotev.backup.NAME":
     sys.exit(f"backup Label: {b.get('Label')!r}")
 args = b.get("ProgramArguments") or []
 want_args = ["/Users/USER/bin/backup-folder", "/ABS/SOURCE", "/ABS/BACKUP-DIR"]

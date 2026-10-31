@@ -3,7 +3,7 @@
 <plist version="1.0">
 <dict>
 	<key>Label</key>
-	<string>com.nikolay.drop-box-watcher</string>
+	<string>com.nikolaybotev.drop-box-watcher</string>
 	<key>ProgramArguments</key>
 	<array>
 		<string>/ABS/PATH/TO/HOME/bin/drop-box-watcher</string>

@@ -20,7 +20,7 @@ A new Mac, a restore, or a repeat setup of the deployment Mac has no single publ
 ## Affected users and systems
 
 - **Users:** the maintainer, who approves and performs setup and restore on the deployment Mac. automation on the deployment Mac that follows the docs during a restore.
-- **Systems:** the public GitHub repo `nikolaybotev/backup-folder`, its GitHub Actions release workflow, `~/bin` on the deployment Mac, LaunchAgents and the WireGuard LaunchDaemon on that Mac, and 1Password as the source of secrets at install time. `OWNER/bootstrap` stays the general dev bootstrap.
+- **Systems:** this repo, its GitHub Actions release workflow, `~/bin` on the deployment Mac, LaunchAgents and the WireGuard LaunchDaemon on that Mac, and 1Password as the source of secrets at install time. `OWNER/bootstrap` stays the general dev bootstrap.
 
 ## Constraints and principles
 

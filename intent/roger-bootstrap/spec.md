@@ -8,7 +8,7 @@
 
 ## 1. Summary
 
-The public repo `nikolaybotev/backup-folder` becomes the host-specific setup hub. It keeps the snapshot tool, gains placeholder LaunchAgent and LaunchDaemon templates, gains setup and restore docs whose steps are each marked manual or scripted, and gains an install script that downloads pinned release binaries into `~/bin` after a signature check. GitHub Actions on a `v*` tag attests each published binary. This change does not rename the repo, does not cut a release, and does not install anything on the deployment Mac.
+This repo becomes the host-specific setup hub. It keeps the snapshot tool, gains placeholder LaunchAgent and LaunchDaemon templates, gains setup and restore docs whose steps are each marked manual or scripted, and gains an install script that downloads pinned release binaries into `~/bin` after a signature check. GitHub Actions on a `v*` tag attests each published binary. This change does not rename the repo, does not cut a release, and does not install anything on the deployment Mac.
 
 The Drop Box watcher stays a separate intent. This spec only says where its binary is installed and that the setup doc points at that intent's LaunchAgent template.
 
@@ -107,7 +107,7 @@ FR7. This change does not add a drop-box-watcher plist or a watcher config schem
 
 FR8. `.github/workflows/release.yml` stays triggered only by tags matching `v*`, on `macos-latest` (GitHub-hosted). It builds `backup-folder` with `swiftc -O -o backup-folder backup-folder.swift`. When `drop-box-watcher.swift` exists in the repo root, it also builds `drop-box-watcher` with `swiftc -O -o drop-box-watcher drop-box-watcher.swift`. This change does not add that source file. If the watcher intent needs a different compile line, that intent edits this workflow.
 
-FR9. After the build, the workflow attests each binary with `actions/attest@v4` (`subject-path` set to that binary). The job permissions include `id-token: write`, `attestations: write`, and `contents: write`. It then runs `gh attestation verify` on each binary with `--repo nikolaybotev/backup-folder`, `--signer-workflow nikolaybotev/backup-folder/.github/workflows/release.yml`, and `--deny-self-hosted-runners`. The verify command may be retried a few times to wait for the attestation API. If verify fails, the job fails before upload. The upload stays `softprops/action-gh-release@v2`, and the asset name is the binary name.
+FR9. After the build, the workflow attests each binary with `actions/attest@v4` (`subject-path` set to that binary). The job permissions include `id-token: write`, `attestations: write`, and `contents: write`. It then runs `gh attestation verify` on each binary with `--repo ${{ github.repository }}`, `--signer-workflow ${{ github.repository }}/.github/workflows/release.yml`, and `--deny-self-hosted-runners`. The verify command may be retried a few times to wait for the attestation API. If verify fails, the job fails before upload. The upload stays `softprops/action-gh-release@v2`, and the asset name is the binary name.
 
 FR10. `pins.txt` in the repo root has one tool per line, `name tag`, plus `#` comments. Both tools ship as `unpinned`:
 
@@ -118,7 +118,7 @@ drop-box-watcher unpinned
 
 A later change outside these phases replaces `unpinned` with a real `v*` tag after the maintainer has published that release. No phase in this plan does that.
 
-FR11. `scripts/install-tools.sh` reads `pins.txt` (override with `PINS_FILE`). For each `unpinned` tool it prints a skip and continues. For each tag that matches `v` plus digits and dots, it downloads that release asset from `nikolaybotev/backup-folder` (override with `GH_REPO`) into a temp file, runs the same `gh attestation verify` flags as FR9, and only then moves the file to `$HOME/bin/<tool>` mode `755`. A tag that is neither `unpinned` nor `v` plus digits and dots makes the script exit non-zero and install nothing. The tool name must match `^[a-z0-9][a-z0-9-]*$`. Verify failure deletes the temp file, leaves any existing `~/bin` binary in place, and exits non-zero. The refusal check takes the uid as an argument: uid 0 is refused, and so is an install directory whose path has a component named `Backups`. The script's main path passes the effective uid. It does not call `launchctl`, `sudo`, or `op`, and it does not read or write `~/Backups`.
+FR11. `scripts/install-tools.sh` reads `pins.txt` (override with `PINS_FILE`). For each `unpinned` tool it prints a skip and continues. For each tag that matches `v` plus digits and dots, it downloads that release asset with `gh release download --repo "$GH_REPO"` (`GH_REPO` defaults to `nikolaybotev/backup-folder`) into a temp file, then runs `gh attestation verify` with `--repo "$GH_REPO"` and `--signer-workflow "${GH_REPO}/.github/workflows/release.yml"`, and only then moves the file to `$HOME/bin/<tool>` mode `755`. A tag that is neither `unpinned` nor `v` plus digits and dots makes the script exit non-zero and install nothing. The tool name must match `^[a-z0-9][a-z0-9-]*$`. Verify failure deletes the temp file, leaves any existing `~/bin` binary in place, and exits non-zero. The refusal check takes the uid as an argument: uid 0 is refused, and so is an install directory whose path has a component named `Backups`. The script's main path passes the effective uid. It does not call `launchctl`, `sudo`, or `op`, and it does not read or write `~/Backups`.
 
 FR12. Snapshot directories are home-mirrored: each one is `~/Backups` plus the source path relative to the home directory. `scripts/ensure-backup-dirs.sh` takes those absolute paths as arguments. It creates each directory and parents, and it does not delete anything. It exits non-zero if an argument is relative, contains a `..` component, or names an existing file. It has no default path and no baked-in source-folder names. Those names stay out of git and are supplied at install time. CI does not run it.
 
@@ -194,7 +194,7 @@ A caveat paragraph, not a bullet: with FileVault, nothing including the VPN star
 
 ## 7. Design decisions
 
-**D1 — Repo name stays; proposed name is `host-bootstrap`.** Every phase in this plan uses `nikolaybotev/backup-folder` in workflow files, the install script, and attestation flags. The proposed GitHub name is `host-bootstrap`. It fits because the repo will hold two tools, the install script, the launchd templates, and the setup docs, while the snapshot binary keeps the name `backup-folder`, and the general bootstrap keeps `~/.bootstrap` and `OWNER/bootstrap`. A later phase would otherwise rename the repo to Cairn or to a short host codename. Cairn is closed by the project preference that the repo and the binary are not renamed to the project name. The legacy host codename is the Mac and the bot, and it does not say bootstrap. The maintainer decides whether to rename (Q1). This change does not rename anything. Verified 2026-10-30: the GitHub repo is public, named `backup-folder`, default branch `main`.
+**D1 — Repo name stays; proposed name is `host-bootstrap`.** This repo's workflows use `${{ github.repository }}`. The install script's default source is `nikolaybotev/backup-folder`. The proposed GitHub name is `host-bootstrap`. It fits because the repo will hold two tools, the install script, the launchd templates, and the setup docs, while the snapshot binary keeps the name `backup-folder`, and the general bootstrap keeps `~/.bootstrap` and `OWNER/bootstrap`. A later phase would otherwise rename the repo to Cairn or to a short host codename. Cairn is closed by the project preference that the repo and the binary are not renamed to the project name. The legacy host codename is the Mac and the bot, and it does not say bootstrap. The maintainer decides whether to rename (Q1). This change does not rename anything. Verified 2026-10-30: the GitHub repo is public, named `backup-folder`, default branch `main`.
 
 **D2 — Call `OWNER/bootstrap`; do not vendor it.** The setup doc runs the installer in setup catalog step 8. Verified 2026-10-30 from that public repo: the README gives that curl command and `~/.bootstrap/update`. `install.Darwin.sh` writes `~/.gitconfig` from a template whose `user.name` and `user.email` are placeholders, sets `commit.gpgsign` and `tag.gpgsign` to true, and leaves `signingkey` empty. This hub does not ship a gitconfig and does not hard-code a name or email.
 
@@ -224,7 +224,7 @@ A caveat paragraph, not a bullet: with FileVault, nothing including the VPN star
 
 ## 8. Open questions
 
-Q1. **Rename the GitHub repo to `host-bootstrap`?** Phases keep `nikolaybotev/backup-folder` until the maintainer says yes. The binary stays `backup-folder` either way.
+Q1. **Rename the GitHub repo to `host-bootstrap`?** Phases do not rename this repo until the maintainer says yes. The binary stays `backup-folder` either way.
 
 Q2. **Turn Remote Login (SSH) on, or leave it off?** The setup doc does not enable it.
 

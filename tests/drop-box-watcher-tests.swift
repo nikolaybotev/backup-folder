@@ -269,7 +269,7 @@ struct DropBoxWatcherTests {
         guard let plist = try? String(contentsOfFile: plistPath, encoding: .utf8) else {
             fail("missing launchd/drop-box-watcher.plist.template")
         }
-        assert(plist.contains("com.nikolay.drop-box-watcher"), "plist label")
+        assert(plist.contains("com.nikolaybotev.drop-box-watcher"), "plist label")
         assert(plist.contains("<key>RunAtLoad</key>"), "RunAtLoad")
         assert(plist.contains("<key>KeepAlive</key>"), "KeepAlive")
         assert(plist.contains("<key>ThrottleInterval</key>"), "ThrottleInterval")

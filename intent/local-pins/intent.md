@@ -20,7 +20,7 @@ The live pin file stays on the machine that runs the installer, and it is not co
 ## Affected users and systems
 
 - **Users:** the maintainer, who writes the local pin file and runs the installer on the Mac. CI and agents, who must not.
-- **Systems:** the public repo `nikolaybotev/backup-folder`, the tracked `pins.txt`, `scripts/install-tools.sh`, and `~/.config` on the machine that uses the installer.
+- **Systems:** this repo, the tracked `pins.txt`, `scripts/install-tools.sh`, and `~/.config` on the machine that uses the installer.
 
 ## Constraints and principles
 

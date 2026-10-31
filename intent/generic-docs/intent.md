@@ -20,7 +20,7 @@ Long-lived docs read as instructions for any Mac user. Placeholders stand in for
 ## Affected users and systems
 
 - **Users:** any person setting up these tools on a Mac. The maintainer, who reviews whether the machine name remains. CI and agents, who must not install anything.
-- **Systems:** the public repo `nikolaybotev/backup-folder`. The long-lived docs and the templates and scripts those docs describe. Not the historical `intent/` folders.
+- **Systems:** this repo. The long-lived docs and the templates and scripts those docs describe. Not the historical `intent/` folders.
 
 ## Constraints and principles
 

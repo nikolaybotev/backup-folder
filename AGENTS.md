@@ -19,7 +19,7 @@ Small macOS CLI that snapshots a folder with APFS copy-on-write clones (`backup-
 - Cloud Agent start: `bash .cursor/start.sh` (no-op for this repo).
 - CI: `.github/workflows/test.yml` (workflow `test`, jobs `macos` and `linux`) runs on every pull request and on pushes to `main`. Required pull request checks are `macos` and `linux`. The `macos` job exports `VERSION=v0.0.0`, runs `bash scripts/build.sh`, then runs `tests/macos-smoke.sh`, `tests/macos-watcher.sh`, and `tests/linux-unit.sh`, plus script and template checks on `macos-latest`. The `linux` job on `ubuntu-latest` installs Swift via `mise`, runs `tests/build-entry-test.sh`, `tests/linux-unit.sh`, compiles `Sources/backup-folder/Retention.swift` with `tests/retention-tests.swift`, and compiles `Sources/backup-folder/PathCheck.swift` with `tests/path-tests.swift`; it does not build the package or compile `Sources/backup-folder/main.swift`.
 - CodeQL: `.github/workflows/codeql.yml` runs job `CodeQL (Swift)` on pushes to `main` and on a nightly schedule (06:00 UTC), with `timeout-minutes: 30`. The manual build exports `VERSION=v0.0.0` and runs `bash scripts/build.sh`. It does not run on pull requests.
-- Release CD: `.github/workflows/release.yml` runs job `publish` on every push to `main`. That job reads release labels on the merged pull request, may push one lightweight `vMAJOR.MINOR.PATCH` tag with `GITHUB_TOKEN`, signs both arm64 binaries with `Nikolay Botev Code Signing`, attests them, writes `SHA256SUMS`, and publishes one GitHub release. It does not push a commit to `main`. Do not claim a release ran unless that publish job succeeded. Agents do not push tags by hand.
+- Release CD: `.github/workflows/release.yml` runs job `publish` on every push to `main`. That job reads release labels on the merged pull request, may push one lightweight `vMAJOR.MINOR.PATCH` tag with `GITHUB_TOKEN`, signs both arm64 binaries with the signing identity (`SIGN_IDENTITY` when set, otherwise the certificate imported from `MACOS_SIGNING_P12_BASE64` and `MACOS_SIGNING_P12_PASSWORD`; a missing identity fails the job), attests them, writes `SHA256SUMS`, and publishes one GitHub release. It does not push a commit to `main`. Do not claim a release ran unless that publish job succeeded. Agents do not push tags by hand.
 - Branch protection: managed outside this repo with `gh`; agents must not create or change GitHub rulesets.
 
 ## Conventions
@@ -27,13 +27,13 @@ Small macOS CLI that snapshots a folder with APFS copy-on-write clones (`backup-
 - Docs follow the solo AI-native SDLC chain when present: `intent/<change>/intent.md` → `spec.md` → `plan.md`. This repo may not have that chain until onboarding intents land.
 - Do not commit real backup paths, hostnames, personal folder names, WireGuard keys, tunnel addresses, endpoints, ports, or 1Password item URIs in tests, fixtures, or templates (use the placeholder tokens).
 - Do not install the binary into `~/Backups` or `~/Backups/bin/backup-folder` from CI or agent work unless an intent explicitly says so.
-- Do not copy `drop-box-watcher` into `~/bin`, write the real watcher config, or load `com.nikolay.drop-box-watcher` from CI or agent work. Follow [`README.md`](README.md) on your Mac when a release pin exists in `~/.config/backup-folder/pins.txt`.
+- Do not copy `drop-box-watcher` into `~/bin`, write the real watcher config, or load `com.nikolaybotev.drop-box-watcher` from CI or agent work. Follow [`README.md`](README.md) on your Mac when a release pin exists in `~/.config/backup-folder/pins.txt`.
 
 ## Architecture
 
 - `Sources/backup-folder/main.swift` is the CLI entry point; `Retention.swift`, `PathCheck.swift`, and `WalkPolicy.swift` in the same directory hold retention rules, path containment, and directory cycle detection during the clone walk. `Package.swift` and `scripts/build.sh` produce both `backup-folder` and `drop-box-watcher`.
 - `drop-box-watcher/` holds the watcher binary sources; `drop-box-watcher.example.toml` and `launchd/drop-box-watcher.plist.template` are install placeholders only. Real config and the routine key stay on the Mac at `~/.config/drop-box-watcher/config.toml` (mode `0600`).
-- `launchd/backup-folder.plist.template` is a per-folder LaunchAgent template (label `com.nikolay.backup.NAME`, hourly at calendar minute 0, binary `/Users/USER/bin/backup-folder`); loading it is manual on a Mac.
+- `launchd/backup-folder.plist.template` is a per-folder LaunchAgent template (label `com.nikolaybotev.backup.NAME`, hourly at calendar minute 0, binary `/Users/USER/bin/backup-folder`); loading it is manual on a Mac.
 - `launchd/com.wireguard.wg0.plist.template` and `launchd/wg0.conf.template` are WireGuard placeholders only. Never commit a WireGuard key, endpoint, tunnel address, or 1Password item URI in git; fill them from 1Password at install time.
 - Agents do not load LaunchAgents, run `launchctl`, or write under `~/Backups`.
 - `mise.toml` pins Swift for Linux editing in Cloud Agents only.
@@ -50,5 +50,5 @@ Small macOS CLI that snapshots a folder with APFS copy-on-write clones (`backup-
 ## Cursor Cloud specific instructions
 
 - `.cursor/environment.json` runs `bash .cursor/install.sh` and `bash .cursor/start.sh`.
-- Install puts Swift 6.4 from `mise.toml` on `PATH`, installs `libncurses6` when needed, and installs skills from `OWNER/local-skills` into `~/.cursor/skills-cursor`.
+- Install puts Swift 6.4 from `mise.toml` on `PATH`, installs `libncurses6` when needed, and installs skills from `nikolaybotev/local-skills` into `~/.cursor/skills-cursor`. `.cursor/install.sh` is only for Cursor Cloud Agent environments. It hardcodes that repository, with no override and no environment variable.
 - Start is a no-op; there is no dev server.

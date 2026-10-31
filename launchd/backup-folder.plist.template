@@ -3,7 +3,7 @@
 <plist version="1.0">
 <dict>
 	<key>Label</key>
-	<string>com.nikolay.backup.NAME</string>
+	<string>com.nikolaybotev.backup.NAME</string>
 	<key>ProgramArguments</key>
 	<array>
 		<string>/Users/USER/bin/backup-folder</string>
