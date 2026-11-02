@@ -113,7 +113,7 @@ enum WatchScope {
            let ino = attrs[.systemFileNumber] as? NSNumber {
             return "\(dev.uint64Value)-\(ino.uint64Value)"
         }
-        return url.resolvingSymlinksInPath().standardizedFileURL.path
+        return nil
     }
 
     private static func walkRegularFiles(
