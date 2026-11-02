@@ -8,9 +8,7 @@
 
 Spec wins. An amendment that keeps the goals is written into the spec in the same commit, and the coverage row moves in that commit. An amendment that drops a goal is a cut. A procedure fix that does not contradict the spec is recorded in the plan only.
 
-Build gate: approved 2026-11-02. One build phase. This pull request does not start it. Phase 0 starts only when someone says to build.
-
-The pull request that adds this folder does not change product code. Do not merge it from the session that only writes this folder. Do not install, load, or reload anything. Do not read a live watcher config or a routine key. Do not write under a home `Backups` directory. Do not add a `release:minor` or `release:major` label. Do not push a tag.
+Build gate: approved 2026-11-02. One build phase. Phase 0 ships in pull request after build.
 
 Merging this design pull request to `main` runs job `publish` in `.github/workflows/release.yml`. With no release label, `scripts/release-version.sh` chooses the next patch tag and may publish a GitHub release of the binaries already on `main`. That is existing behavior, checked 2026-11-02 in that workflow and in `scripts/release-version.sh`. This intent does not change the version scheme. There is no docs-only skip. The build phase is a later pull request; merging that pull request runs the same job again.
 
@@ -54,4 +52,4 @@ DoD: Run these on the Phase 0 commit, after steps 3 and 5. `bash tests/linux-uni
 
 ### Build notes (Phase 0)
 
-Added only after the phase lands.
+- Directory cycle guard uses `(systemNumber, systemFileNumber)` with a fallback to `deviceIdentifier` when `systemNumber` is absent, so Linux unit tests can walk nested directories (Darwin provides `deviceIdentifier`; Linux exposes `NSFileSystemNumber` as `.systemNumber`).

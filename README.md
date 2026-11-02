@@ -60,7 +60,7 @@ Cloud agents boot the default image and run [`.cursor/install.sh`](.cursor/insta
 
 ## drop-box-watcher
 
-`drop-box-watcher` watches one folder (the iCloud **Drop Box** folder on Desktop; Apple's iCloud exclude list uses the name `Dropbox`, which is not this folder). When a file is fully present on disk, it POSTs a nudge to a Grok Bot routine webhook. List the folder and move files; the watcher does not.
+`drop-box-watcher` watches one folder (the iCloud **Drop Box** folder on Desktop; Apple's iCloud exclude list uses the name `Dropbox`, which is not this folder). When a regular file is fully present on disk at any depth under that folder, it POSTs a nudge to a Grok Bot routine webhook. Files already present under the same top-level child share one nudge for the claim triples that are new in that pass. The ignore list still matches leaf names only. Deleting an emptied folder after a nudge does not POST again. List the folder and move files; the watcher does not.
 
 Run `scripts/test-webhook.sh` in this repo to send one manual empty POST using the `url` and `key` from your watcher config.
 

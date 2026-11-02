@@ -20,13 +20,22 @@ for pattern in 'Task.sleep' 'usleep' 'sleep(' 'exit('; do
   done
 done
 
-if [[ -f drop-box-watcher/Watcher.swift ]]; then
-  for pattern in 'Task.sleep' 'usleep' 'sleep('; do
-    if grep -q "$pattern" drop-box-watcher/Watcher.swift; then
-      echo "linux-unit: forbidden pattern $pattern in Watcher.swift" >&2
-      exit 1
-    fi
-  done
+for file in drop-box-watcher/Watcher.swift drop-box-watcher/WatchScope.swift; do
+  if [[ -f "$file" ]]; then
+    for pattern in 'Task.sleep' 'usleep' 'sleep(' 'Timer' 'asyncAfter'; do
+      if grep -q "$pattern" "$file"; then
+        echo "linux-unit: forbidden pattern $pattern in $file" >&2
+        exit 1
+      fi
+    done
+  fi
+done
+
+if [[ -f drop-box-watcher/WatchScope.swift ]]; then
+  if grep -q 'startDownloadingUbiquitousItem' drop-box-watcher/WatchScope.swift; then
+    echo "linux-unit: forbidden pattern startDownloadingUbiquitousItem in WatchScope.swift" >&2
+    exit 1
+  fi
 fi
 
 TMPDIR="${TMPDIR:-/tmp}"
@@ -38,6 +47,7 @@ swiftc -O \
   drop-box-watcher/Config.swift \
   drop-box-watcher/ConfigReload.swift \
   drop-box-watcher/Readiness.swift \
+  drop-box-watcher/WatchScope.swift \
   drop-box-watcher/Log.swift \
   drop-box-watcher/WebhookHTTP.swift \
   drop-box-watcher/WebhookNotifier.swift \

@@ -13,7 +13,7 @@ final class DropBoxFolderWatcher: NSObject, NSFilePresenter {
 
     /// Path from config (may be a symlink); used for `NSFilePresenter`.
     private var watchFolderConfigured: URL
-    /// Resolved directory path; used for FSEvents and direct-child checks.
+    /// Resolved directory path; used for FSEvents and scope checks.
     private var watchFolderURL: URL
     private var ignorePatterns: [String]
     private var notifier: WebhookNotifier
@@ -97,22 +97,6 @@ final class DropBoxFolderWatcher: NSObject, NSFilePresenter {
         }
     }
 
-    private func filesystemEqual(_ a: URL, _ b: URL) -> Bool {
-        let pa = a.resolvingSymlinksInPath().standardizedFileURL.path
-        let pb = b.resolvingSymlinksInPath().standardizedFileURL.path
-        if pa == pb { return true }
-        func stripPrivatePrefix(_ path: String) -> String {
-            if path.hasPrefix("/private") { return String(path.dropFirst("/private".count)) }
-            return path
-        }
-        return stripPrivatePrefix(pa) == stripPrivatePrefix(pb)
-    }
-
-    private func isDirectChild(_ url: URL) -> Bool {
-        let parent = url.deletingLastPathComponent()
-        return filesystemEqual(parent, watchFolderURL)
-    }
-
     private func entryKind(for url: URL) -> PathEntryKind {
         let keys: Set<URLResourceKey> = [.isRegularFileKey, .isDirectoryKey, .isSymbolicLinkKey]
         guard let values = try? url.resourceValues(forKeys: keys) else {
@@ -160,7 +144,6 @@ final class DropBoxFolderWatcher: NSObject, NSFilePresenter {
     private func recheck(_ url: URL) -> WebhookClaim? {
         let standardized = url.resolvingSymlinksInPath().standardizedFileURL
         let path = standardized.path
-        guard isDirectChild(url) else { return nil }
         guard FileManager.default.fileExists(atPath: path) else {
             dropClaims(forStandardizedPath: path)
             return nil
@@ -237,10 +220,31 @@ final class DropBoxFolderWatcher: NSObject, NSFilePresenter {
         }
     }
 
+    private func candidatesForEventURLs(_ urls: [URL], enumerationOptions: FileManager.DirectoryEnumerationOptions) -> [URL] {
+        var seenPaths = Set<String>()
+        var ordered: [URL] = []
+        for url in urls {
+            let found = WatchScope.candidateRegularFiles(
+                watchFolder: watchFolderURL,
+                eventURL: url,
+                ignorePatterns: ignorePatterns,
+                enumerationOptions: enumerationOptions
+            )
+            for candidate in found {
+                let path = candidate.resolvingSymlinksInPath().standardizedFileURL.path
+                if seenPaths.insert(path).inserted {
+                    ordered.append(candidate)
+                }
+            }
+        }
+        return ordered
+    }
+
     private func handleURLs(_ urls: [URL]) {
         pruneClaimsForMissingPaths()
+        let candidates = candidatesForEventURLs(urls, enumerationOptions: [])
         var batch: [WebhookClaim] = []
-        for url in urls {
+        for url in candidates {
             if let claim = recheck(url) {
                 batch.append(claim)
             }
@@ -250,38 +254,16 @@ final class DropBoxFolderWatcher: NSObject, NSFilePresenter {
 
     private func startupScan() {
         pruneClaimsForMissingPaths()
-        let urls = (try? FileManager.default.contentsOfDirectory(
-            at: watchFolderURL,
-            includingPropertiesForKeys: nil,
-            options: [.skipsHiddenFiles]
-        )) ?? []
+        let candidates = WatchScope.candidateRegularFiles(
+            watchFolder: watchFolderURL,
+            eventURL: watchFolderURL,
+            ignorePatterns: ignorePatterns,
+            enumerationOptions: [.skipsHiddenFiles]
+        )
         var batch: [WebhookClaim] = []
-        for url in urls {
-            guard isDirectChild(url) else { continue }
-            let fileName = url.lastPathComponent
-            let kind = entryKind(for: url)
-            let (isUbiquitous, ubiStatus, inFlight) = ubiquitousState(for: url)
-            let decision = readinessDecision(
-                fileName: fileName,
-                ignorePatterns: ignorePatterns,
-                entryKind: kind,
-                isUbiquitous: isUbiquitous,
-                ubiquitousStatus: ubiStatus,
-                ubiquitousDownloadInFlight: inFlight
-            )
-            switch decision {
-            case .skip:
-                continue
-            case .requestDownload:
-                do {
-                    try FileManager.default.startDownloadingUbiquitousItem(at: url)
-                } catch {
-                    log.writeLine("startDownloadingUbiquitousItem \(fileName): \(error.localizedDescription)")
-                }
-            case .ready:
-                if let claim = claimIfReady(url) {
-                    batch.append(claim)
-                }
+        for url in candidates {
+            if let claim = recheck(url) {
+                batch.append(claim)
             }
         }
         enqueueClaims(batch)
