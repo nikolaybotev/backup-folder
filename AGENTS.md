@@ -33,7 +33,7 @@ Small macOS CLI that snapshots a folder with APFS copy-on-write clones (`backup-
 ## Architecture
 
 - `Sources/backup-folder/main.swift` is the CLI entry point. `BackupConfig.swift` reads the job config, including an optional root `retention` list and an optional per-folder `retention` list; when both are absent for a folder, pruning uses the built-in rule (keep every snapshot for 48 hours, then the earliest snapshot of each calendar day for 60 days). `FolderJob.swift` runs one task per folder; a folder status does not cancel its siblings (each returns 0, 1, or 2, and the process exit is the maximum). `Retention.swift`, `PathCheck.swift`, and `WalkPolicy.swift` in the same directory hold retention rules, path containment, and directory cycle detection during the clone walk. `Package.swift` and `scripts/build.sh` produce both `backup-folder` and `drop-box-watcher`. `ToolConfig` (`Sources/ToolConfig/`) is the shared TOML subset and permission check. `backup-folder` and `drop-box-watcher` depend on it.
-- `drop-box-watcher/` holds the watcher binary sources; `drop-box-watcher.example.toml` and `launchd/drop-box-watcher.plist.template` are install placeholders only. Real config and the routine key stay on the Mac at `~/.config/drop-box-watcher/config.toml` (mode `0600`).
+- `drop-box-watcher/` holds the watcher binary sources; `drop-box-watcher.example.toml` and `launchd/drop-box-watcher.plist.template` are install placeholders only. Real config and the routine key stay on the Mac at `~/.config/drop-box-watcher/config.toml` (mode `0600`). A ready regular file at any depth under the watch folder is in scope; a folder drop shares one nudge for newly ready files under that top-level child. Do not add a readiness timer or settle delay on the watcher path.
 - One LaunchAgent, label `com.nikolaybotev.backup`, runs hourly at minute 0 and reads `~/.config/backup-folder/config.toml` (source and destination pairs). `launchd/backup-folder.plist.template` is that agent (`backup-folder --config` and `/ABS/PATH/TO/HOME/.config/backup-folder/config.toml`). Loading it is manual on a Mac.
 - `launchd/com.wireguard.wg0.plist.template` and `launchd/wg0.conf.template` are WireGuard placeholders only. Never commit a WireGuard key, endpoint, tunnel address, or 1Password item URI in git; fill them from 1Password at install time.
 - Agents do not load LaunchAgents, run `launchctl`, or write under `~/Backups`.
@@ -51,6 +51,7 @@ Small macOS CLI that snapshots a folder with APFS copy-on-write clones (`backup-
 - Do not edit `launchd/backup-folder.plist.template` to a five-minute schedule; document `StartInterval` 300 or a custom `StartCalendarInterval` in human-facing docs only.
 - Do not put `retention` in the watcher config; tiers belong in the backup config only.
 - Do not treat the four-hour-through-30-day tier list as the code default; absent keys resolve to `defaultTiers` in `Retention.swift`.
+- Do not gate watcher rechecks on direct-child paths only; nested regular files are in scope via `WatchScope.swift`.
 
 ## Cursor Cloud specific instructions
 

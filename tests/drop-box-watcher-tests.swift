@@ -29,6 +29,7 @@ struct DropBoxWatcherTests {
         await testWebhookNotifier()
         testExampleConfigFile()
         testInstallSurfaceFiles()
+        testWatchScope()
         print("drop-box-watcher-tests: OK")
     }
 
@@ -532,6 +533,111 @@ struct DropBoxWatcherTests {
             assert(cfg.ignorePatterns == wantIgnore, "example ignore list")
         case .failure(let err):
             fail("example config parse: \(err)")
+        }
+    }
+
+    static func testWatchScope() {
+        let patterns = [".DS_Store", ".*", "*.icloud"]
+        let tmp = FileManager.default.temporaryDirectory.appendingPathComponent("dbw-scope-\(UUID().uuidString)")
+        try! FileManager.default.createDirectory(at: tmp, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tmp) }
+
+        let watch = tmp.appendingPathComponent("watch")
+        let childA = watch.appendingPathComponent("dropA")
+        let childB = watch.appendingPathComponent("dropB")
+        let nested = childA.appendingPathComponent("nested")
+        let dotDir = watch.appendingPathComponent(".hidden-dir")
+        try! FileManager.default.createDirectory(at: watch, withIntermediateDirectories: true)
+        try! FileManager.default.createDirectory(at: childA, withIntermediateDirectories: true)
+        try! FileManager.default.createDirectory(at: childB, withIntermediateDirectories: true)
+        try! FileManager.default.createDirectory(at: nested, withIntermediateDirectories: true)
+        try! FileManager.default.createDirectory(at: dotDir, withIntermediateDirectories: true)
+
+        func touch(_ url: URL, _ text: String = "x") {
+            try! text.write(to: url, atomically: true, encoding: .utf8)
+        }
+        touch(watch.appendingPathComponent("root.md"))
+        touch(childA.appendingPathComponent("a.md"))
+        touch(childB.appendingPathComponent("b-other.md"))
+        touch(nested.appendingPathComponent("c.md"))
+        touch(nested.appendingPathComponent(".DS_Store"))
+        touch(dotDir.appendingPathComponent("inside.md"))
+
+        touch(watch.appendingPathComponent("solo.md"))
+
+        let watchResolved = watch.resolvingSymlinksInPath().standardizedFileURL
+
+        func relSet(_ urls: [URL]) -> Set<String> {
+            Set(urls.map { url in
+                let path = url.standardizedFileURL.path
+                let prefix = watchResolved.path + "/"
+                if path.hasPrefix(prefix) {
+                    return String(path.dropFirst(prefix.count))
+                }
+                return path
+            })
+        }
+
+        func candidates(_ event: URL, options: FileManager.DirectoryEnumerationOptions = []) -> Set<String> {
+            relSet(WatchScope.candidateRegularFiles(
+                watchFolder: watchResolved,
+                eventURL: event,
+                ignorePatterns: patterns,
+                enumerationOptions: options
+            ))
+        }
+
+        let nestedEvent = nested.appendingPathComponent("c.md")
+        let nestedSet = candidates(nestedEvent)
+        assert(nestedSet.contains("dropA/a.md"), "nested event includes sibling in same child")
+        assert(nestedSet.contains("dropA/nested/c.md"), "nested event includes deeper file")
+        assert(!nestedSet.contains("dropB/b-other.md"), "nested event excludes other top-level child")
+        assert(!nestedSet.contains("dropA/nested/.DS_Store"), "DS_Store omitted in subtree")
+
+        let directFile = watch.appendingPathComponent("solo.md")
+        let directSet = candidates(directFile)
+        assert(directSet == ["solo.md"], "direct child file does not walk siblings")
+
+        let dotChildSet = candidates(dotDir.appendingPathComponent("inside.md"))
+        assert(dotChildSet == [".hidden-dir/inside.md"], "file under ignore-named dir returned")
+
+        let outsideLink = watch.appendingPathComponent("outside-link")
+        try! FileManager.default.createSymbolicLink(
+            at: outsideLink,
+            withDestinationURL: tmp.appendingPathComponent("outside-target")
+        )
+        try! FileManager.default.createDirectory(
+            at: tmp.appendingPathComponent("outside-target"),
+            withIntermediateDirectories: true
+        )
+        touch(tmp.appendingPathComponent("outside-target/secret.md"))
+        assert(candidates(outsideLink).isEmpty, "symlink to outside tree contributes nothing")
+
+        let missing = watch.appendingPathComponent("no-such.md")
+        assert(candidates(missing).isEmpty, "missing path")
+
+        let sibling = tmp.appendingPathComponent("sibling-watch-prefix")
+        try! FileManager.default.createDirectory(at: sibling, withIntermediateDirectories: true)
+        touch(sibling.appendingPathComponent("x.md"))
+        assert(candidates(sibling.appendingPathComponent("x.md")).isEmpty, "sibling path out of scope")
+
+        let startupSet = candidates(watchResolved, options: [.skipsHiddenFiles])
+        assert(startupSet.contains("root.md"), "startup walk root file")
+        assert(startupSet.contains("dropA/nested/c.md"), "startup walk nested file")
+        assert(!startupSet.contains("dropA/nested/.DS_Store"), "startup skips hidden DS_Store")
+
+        let privateWatch = URL(fileURLWithPath: "/private" + watchResolved.path)
+        assert(
+            WatchScope.isWithinWatchFolder(
+                watchFolder: watchResolved,
+                resolvedStandardizedPath: privateWatch.path
+            ),
+            "/private prefix compare"
+        )
+
+        for pattern in ["Task.sleep", "usleep", "sleep(", "Timer", "asyncAfter", "startDownloadingUbiquitousItem"] {
+            let scopeText = (try? String(contentsOfFile: "drop-box-watcher/WatchScope.swift", encoding: .utf8)) ?? ""
+            assert(!scopeText.contains(pattern), "WatchScope must not contain \(pattern)")
         }
     }
 

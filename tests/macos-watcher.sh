@@ -159,7 +159,7 @@ for line in lines[skip:]:
     if rec.get("authorization") != f"Bearer {key}":
         continue
     body = json.loads(rec["body"])
-    if body.get("files") == want:
+    if set(body.get("files", [])) == set(want):
         sys.exit(0)
 sys.exit(1)
 PY
@@ -359,6 +359,132 @@ if [[ "$post_count" -lt 2 ]]; then
 fi
 
 echo "macos-watcher: notify OK"
+
+count_webhook_enqueues() {
+  python3 - "$LOG" <<'PY'
+import sys
+path = sys.argv[1]
+try:
+    text = open(path, encoding="utf-8", errors="replace").read()
+except FileNotFoundError:
+    print(0)
+    raise SystemExit
+print(text.count("webhook enqueue files="))
+PY
+}
+
+assert_post_files_set() {
+  local skip_lines="$1"
+  local want_json="$2"
+  python3 - "$POSTS" "$skip_lines" "$want_json" "$TEST_KEY" <<'PY'
+import json, sys
+path, skip_s, want_s, key = sys.argv[1:5]
+skip = int(skip_s)
+want = set(json.loads(want_s))
+lines = open(path).read().splitlines()
+seen = []
+for line in lines[skip:]:
+    if not line.strip():
+        continue
+    rec = json.loads(line)
+    if rec.get("authorization") != f"Bearer {key}":
+        continue
+    body = json.loads(rec["body"])
+    seen.append(set(body.get("files", [])))
+if want not in seen:
+    sys.exit(1)
+PY
+}
+
+posts_before_nested="$(wc -l < "$POSTS" | tr -d ' ')"
+enqueues_before_nested="$(count_webhook_enqueues)"
+
+STAGED="$TMPROOT/staged-drop"
+mkdir -p "$STAGED/nested"
+printf 'a' >"$STAGED/a.md"
+printf 'b' >"$STAGED/b.md"
+printf 'c' >"$STAGED/nested/c.md"
+printf 'ds' >"$STAGED/.DS_Store"
+mv "$STAGED" "$LINK_WATCH/dropped-tree"
+
+if ! poll_for_files '["a.md","b.md","c.md"]' "$posts_before_nested"; then
+  echo "macos-watcher: timed out waiting for nested folder drop nudge" >&2
+  cat "$POSTS" 2>/dev/null >&2 || true
+  print_watcher_diagnostics
+  exit 1
+fi
+
+new_posts=$(( $(wc -l < "$POSTS" | tr -d ' ') - posts_before_nested ))
+if [[ "$new_posts" -ne 1 ]]; then
+  echo "macos-watcher: expected exactly one new POST for folder drop, got $new_posts" >&2
+  exit 1
+fi
+
+assert_post_files_set "$posts_before_nested" '["a.md","b.md","c.md"]'
+
+enqueue_after_drop="$(count_webhook_enqueues)"
+new_enqueues=$(( enqueue_after_drop - enqueues_before_nested ))
+if [[ "$new_enqueues" -ne 1 ]]; then
+  echo "macos-watcher: expected one new webhook enqueue for folder drop, got $new_enqueues" >&2
+  exit 1
+fi
+
+python3 - "$LOG" "$enqueues_before_nested" <<'PY'
+import sys
+path = sys.argv[1]
+before = int(sys.argv[2])
+lines = open(path, encoding="utf-8", errors="replace").read().splitlines()
+new_lines = [ln for ln in lines if "webhook enqueue files=" in ln][before:]
+if len(new_lines) != 1:
+    sys.exit(1)
+line = new_lines[0]
+for name in ("a.md", "b.md", "c.md"):
+    if name not in line:
+        sys.exit(1)
+for bad in (".DS_Store", "dropped-tree"):
+    if bad in line:
+        sys.exit(1)
+PY
+
+sleep 1
+if [[ "$(wc -l < "$POSTS" | tr -d ' ')" -ne $((posts_before_nested + 1)) ]]; then
+  echo "macos-watcher: POST count grew after quiet period following folder drop" >&2
+  exit 1
+fi
+if [[ "$(count_webhook_enqueues)" -ne "$enqueue_after_drop" ]]; then
+  echo "macos-watcher: enqueue count grew after quiet period following folder drop" >&2
+  exit 1
+fi
+
+posts_before_delete="$posts_before_nested"
+enqueue_before_delete="$enqueue_after_drop"
+rm -f "$LINK_WATCH/dropped-tree/a.md" "$LINK_WATCH/dropped-tree/b.md" "$LINK_WATCH/dropped-tree/nested/c.md"
+rmdir "$LINK_WATCH/dropped-tree/nested" "$LINK_WATCH/dropped-tree" 2>/dev/null || true
+
+sleep 1
+if [[ "$(wc -l < "$POSTS" | tr -d ' ')" -ne $((posts_before_delete + 1)) ]]; then
+  echo "macos-watcher: POST count changed after emptied-folder delete" >&2
+  exit 1
+fi
+if [[ "$(count_webhook_enqueues)" -ne "$enqueue_before_delete" ]]; then
+  echo "macos-watcher: enqueue count changed after emptied-folder delete" >&2
+  exit 1
+fi
+
+posts_before_deep="$(wc -l < "$POSTS" | tr -d ' ')"
+mkdir -p "$LINK_WATCH/level/inner"
+printf 'only' >"$LINK_WATCH/level/inner/only.md"
+if ! poll_for_files '["only.md"]' "$posts_before_deep"; then
+  echo "macos-watcher: timed out waiting for nested create only.md" >&2
+  cat "$POSTS" 2>/dev/null >&2 || true
+  print_watcher_diagnostics
+  exit 1
+fi
+deep_new=$(( $(wc -l < "$POSTS" | tr -d ' ') - posts_before_deep ))
+if [[ "$deep_new" -ne 1 ]]; then
+  echo "macos-watcher: expected one POST for level/inner/only.md, got $deep_new" >&2
+  exit 1
+fi
 
 log_byte_count() {
   wc -c < "$1" | tr -d ' '

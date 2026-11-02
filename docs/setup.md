@@ -40,4 +40,4 @@ Run this checklist on your Mac. GitHub Actions and cloud agents do not run these
 
 ## Caveats
 
-With FileVault, nothing—including the VPN—starts on a cold boot until the disk is unlocked. For a planned restart, `sudo fdesetup authrestart` brings the VPN and Screen Sharing back unattended. After a power loss, someone unlocks the Mac locally. The watcher is a per-user LaunchAgent, so it starts at login, and its own startup scan covers files that arrived while it was down. That scan is specified by the drop-box-watcher intent, not here.
+With FileVault, nothing—including the VPN—starts on a cold boot until the disk is unlocked. For a planned restart, `sudo fdesetup authrestart` brings the VPN and Screen Sharing back unattended. After a power loss, someone unlocks the Mac locally. The watcher is a per-user LaunchAgent, so it starts at login, and its own startup scan covers regular files at any depth that were already present while it was down. That scan is specified by the drop-box-watcher intent, not here.
