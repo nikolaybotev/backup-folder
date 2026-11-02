@@ -159,7 +159,7 @@ for line in lines[skip:]:
     if rec.get("authorization") != f"Bearer {key}":
         continue
     body = json.loads(rec["body"])
-    if body.get("files") == want:
+    if set(body.get("files", [])) == set(want):
         sys.exit(0)
 sys.exit(1)
 PY
@@ -405,7 +405,7 @@ printf 'a' >"$STAGED/a.md"
 printf 'b' >"$STAGED/b.md"
 printf 'c' >"$STAGED/nested/c.md"
 printf 'ds' >"$STAGED/.DS_Store"
-mv "$STAGED" "$REAL_WATCH/dropped-tree"
+mv "$STAGED" "$LINK_WATCH/dropped-tree"
 
 if ! poll_for_files '["a.md","b.md","c.md"]' "$posts_before_nested"; then
   echo "macos-watcher: timed out waiting for nested folder drop nudge" >&2
@@ -458,8 +458,8 @@ fi
 
 posts_before_delete="$posts_before_nested"
 enqueue_before_delete="$enqueue_after_drop"
-rm -f "$REAL_WATCH/dropped-tree/a.md" "$REAL_WATCH/dropped-tree/b.md" "$REAL_WATCH/dropped-tree/nested/c.md"
-rmdir "$REAL_WATCH/dropped-tree/nested" "$REAL_WATCH/dropped-tree" 2>/dev/null || true
+rm -f "$LINK_WATCH/dropped-tree/a.md" "$LINK_WATCH/dropped-tree/b.md" "$LINK_WATCH/dropped-tree/nested/c.md"
+rmdir "$LINK_WATCH/dropped-tree/nested" "$LINK_WATCH/dropped-tree" 2>/dev/null || true
 
 sleep 1
 if [[ "$(wc -l < "$POSTS" | tr -d ' ')" -ne $((posts_before_delete + 1)) ]]; then
@@ -472,8 +472,8 @@ if [[ "$(count_webhook_enqueues)" -ne "$enqueue_before_delete" ]]; then
 fi
 
 posts_before_deep="$(wc -l < "$POSTS" | tr -d ' ')"
-mkdir -p "$REAL_WATCH/level/inner"
-printf 'only' >"$REAL_WATCH/level/inner/only.md"
+mkdir -p "$LINK_WATCH/level/inner"
+printf 'only' >"$LINK_WATCH/level/inner/only.md"
 if ! poll_for_files '["only.md"]' "$posts_before_deep"; then
   echo "macos-watcher: timed out waiting for nested create only.md" >&2
   cat "$POSTS" 2>/dev/null >&2 || true

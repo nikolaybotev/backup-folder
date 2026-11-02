@@ -226,6 +226,7 @@ final class DropBoxFolderWatcher: NSObject, NSFilePresenter {
         for url in urls {
             let found = WatchScope.candidateRegularFiles(
                 watchFolder: watchFolderURL,
+                watchFolderPresented: watchFolderConfigured,
                 eventURL: url,
                 ignorePatterns: ignorePatterns,
                 enumerationOptions: enumerationOptions
@@ -256,6 +257,7 @@ final class DropBoxFolderWatcher: NSObject, NSFilePresenter {
         pruneClaimsForMissingPaths()
         let candidates = WatchScope.candidateRegularFiles(
             watchFolder: watchFolderURL,
+            watchFolderPresented: watchFolderConfigured,
             eventURL: watchFolderURL,
             ignorePatterns: ignorePatterns,
             enumerationOptions: [.skipsHiddenFiles]

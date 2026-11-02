@@ -53,3 +53,5 @@ DoD: Run these on the Phase 0 commit, after steps 3 and 5. `bash tests/linux-uni
 ### Build notes (Phase 0)
 
 - Directory cycle guard uses `(systemNumber, systemFileNumber)` with a fallback to `deviceIdentifier` when `systemNumber` is absent, so Linux unit tests can walk nested directories (Darwin provides `deviceIdentifier`; Linux exposes `NSFileSystemNumber` as `.systemNumber`).
+- Tree walks use `contentsOfDirectory` recursion instead of `FileManager.enumerator` so a directory whose metadata lookup fails does not skip an entire subtree via `skipDescendants`. Direct-child detection also treats the configured presenter path as the watch root when it differs from the resolved path.
+- macOS smoke polls webhook bodies by set of basenames (order not fixed) and performs folder-drop mutations through the configured watch symlink path so `NSFilePresenter` sees the same volume rename as the config.

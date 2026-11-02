@@ -28,22 +28,25 @@ enum WatchScope {
     /// Returns regular-file URLs to recheck this pass (FR2). Does not claim or coordinate.
     static func candidateRegularFiles(
         watchFolder: URL,
+        watchFolderPresented: URL? = nil,
         eventURL: URL,
         ignorePatterns: [String],
         enumerationOptions: FileManager.DirectoryEnumerationOptions
     ) -> [URL] {
         let fm = FileManager.default
-        guard fm.fileExists(atPath: eventURL.path) else { return [] }
+        let eventStandardized = eventURL.standardizedFileURL
+        guard fm.fileExists(atPath: eventStandardized.path) else { return [] }
 
-        let scopePath = eventURL.resolvingSymlinksInPath().standardizedFileURL.path
+        let scopePath = eventStandardized.resolvingSymlinksInPath().standardizedFileURL.path
         guard isWithinWatchFolder(watchFolder: watchFolder, resolvedStandardizedPath: scopePath) else {
             return []
         }
 
         let watchResolved = watchFolder.resolvingSymlinksInPath().standardizedFileURL
 
-        if filesystemEqual(eventURL.standardizedFileURL, watchResolved)
-            || filesystemEqual(eventURL, watchFolder) {
+        if filesystemEqual(eventStandardized, watchResolved)
+            || filesystemEqual(eventURL, watchFolder)
+            || (watchFolderPresented.map { filesystemEqual(eventStandardized, $0) } ?? false) {
             return walkRegularFiles(
                 at: watchResolved,
                 watchFolder: watchFolder,
@@ -52,7 +55,11 @@ enum WatchScope {
             )
         }
 
-        guard let directChild = directChildOfWatchFolder(eventURL: eventURL, watchFolder: watchFolder) else {
+        guard let directChild = directChildOfWatchFolder(
+            eventURL: eventStandardized,
+            watchFolder: watchFolder,
+            watchFolderPresented: watchFolderPresented
+        ) else {
             return []
         }
 
@@ -61,7 +68,7 @@ enum WatchScope {
 
         if childValues.isSymbolicLink == true { return [] }
 
-        if childValues.isRegularFile == true, filesystemEqual(directChild, eventURL) {
+        if childValues.isRegularFile == true, filesystemEqual(directChild, eventStandardized) {
             let name = directChild.lastPathComponent
             if nameMatchesAnyIgnorePattern(name, patterns: ignorePatterns) { return [] }
             return [directChild.standardizedFileURL]
@@ -77,11 +84,18 @@ enum WatchScope {
         )
     }
 
-    private static func directChildOfWatchFolder(eventURL: URL, watchFolder: URL) -> URL? {
+    private static func directChildOfWatchFolder(
+        eventURL: URL,
+        watchFolder: URL,
+        watchFolderPresented: URL?
+    ) -> URL? {
         var current = eventURL.standardizedFileURL
         while true {
             let parent = current.deletingLastPathComponent()
             if filesystemEqual(parent, watchFolder) {
+                return current
+            }
+            if let presented = watchFolderPresented, filesystemEqual(parent, presented) {
                 return current
             }
             if parent.path == current.path || parent.path == "/" {
@@ -91,64 +105,67 @@ enum WatchScope {
         }
     }
 
+    private static func directoryIdentity(for url: URL) -> String? {
+        guard let attrs = try? FileManager.default.attributesOfItem(atPath: url.path) else {
+            return nil
+        }
+        if let dev = (attrs[.systemNumber] as? NSNumber) ?? (attrs[.deviceIdentifier] as? NSNumber),
+           let ino = attrs[.systemFileNumber] as? NSNumber {
+            return "\(dev.uint64Value)-\(ino.uint64Value)"
+        }
+        return url.resolvingSymlinksInPath().standardizedFileURL.path
+    }
+
     private static func walkRegularFiles(
         at root: URL,
         watchFolder: URL,
         ignorePatterns: [String],
         enumerationOptions: FileManager.DirectoryEnumerationOptions
     ) -> [URL] {
-        guard let enumerator = FileManager.default.enumerator(
-            at: root,
-            includingPropertiesForKeys: [.isRegularFileKey, .isDirectoryKey, .isSymbolicLinkKey],
-            options: enumerationOptions
-        ) else {
-            return []
-        }
-
+        let fm = FileManager.default
+        let keys: Set<URLResourceKey> = [.isRegularFileKey, .isDirectoryKey, .isSymbolicLinkKey]
         var seenDirectoryIds: Set<String> = []
         var files: [URL] = []
-        let keys: Set<URLResourceKey> = [.isRegularFileKey, .isDirectoryKey, .isSymbolicLinkKey]
+        var stack = [root.standardizedFileURL]
 
-        for case let url as URL in enumerator {
-            guard let values = try? url.resourceValues(forKeys: keys) else { continue }
+        while let dir = stack.popLast() {
+            let dirScope = dir.resolvingSymlinksInPath().standardizedFileURL.path
+            guard isWithinWatchFolder(watchFolder: watchFolder, resolvedStandardizedPath: dirScope) else {
+                continue
+            }
+            guard let dirId = directoryIdentity(for: dir) else { continue }
+            if seenDirectoryIds.contains(dirId) { continue }
+            seenDirectoryIds.insert(dirId)
 
-            if values.isSymbolicLink == true {
-                enumerator.skipDescendants()
+            guard let entries = try? fm.contentsOfDirectory(
+                at: dir,
+                includingPropertiesForKeys: Array(keys),
+                options: enumerationOptions
+            ) else {
                 continue
             }
 
-            if values.isDirectory == true {
-                let scopePath = url.resolvingSymlinksInPath().standardizedFileURL.path
-                if !isWithinWatchFolder(watchFolder: watchFolder, resolvedStandardizedPath: scopePath) {
-                    enumerator.skipDescendants()
+            for url in entries {
+                guard let values = try? url.resourceValues(forKeys: keys) else { continue }
+
+                if values.isSymbolicLink == true { continue }
+
+                if values.isDirectory == true {
+                    stack.append(url.standardizedFileURL)
                     continue
                 }
-                guard let attrs = try? FileManager.default.attributesOfItem(atPath: url.path),
-                      let dev = (attrs[.systemNumber] as? NSNumber) ?? (attrs[.deviceIdentifier] as? NSNumber),
-                      let ino = attrs[.systemFileNumber] as? NSNumber
-                else {
-                    enumerator.skipDescendants()
+
+                if values.isRegularFile != true { continue }
+
+                let filePath = url.resolvingSymlinksInPath().standardizedFileURL.path
+                if !isWithinWatchFolder(watchFolder: watchFolder, resolvedStandardizedPath: filePath) {
                     continue
                 }
-                let dirId = "\(dev.uint64Value)-\(ino.uint64Value)"
-                if seenDirectoryIds.contains(dirId) {
-                    enumerator.skipDescendants()
-                    continue
-                }
-                seenDirectoryIds.insert(dirId)
-                continue
+
+                let name = url.lastPathComponent
+                if nameMatchesAnyIgnorePattern(name, patterns: ignorePatterns) { continue }
+                files.append(url.standardizedFileURL)
             }
-
-            if values.isRegularFile != true { continue }
-
-            let filePath = url.resolvingSymlinksInPath().standardizedFileURL.path
-            if !isWithinWatchFolder(watchFolder: watchFolder, resolvedStandardizedPath: filePath) {
-                continue
-            }
-
-            let name = url.lastPathComponent
-            if nameMatchesAnyIgnorePattern(name, patterns: ignorePatterns) { continue }
-            files.append(url.standardizedFileURL)
         }
 
         return files
